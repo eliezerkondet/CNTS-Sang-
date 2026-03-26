@@ -1,0 +1,108 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Messages IEC - CNTS{% endblock %}
+{% block page_title %}Messagerie SMS / IEC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Messagerie IEC & SMS</div>
+    <div class="page-subtitle">Communication via Africa's Talking (SMS / USSD)</div>
+  </div>
+  <a href="{% url 'message_create' %}" class="btn-blood">
+    <i class="bi bi-chat-dots-fill"></i> Nouveau message
+  </a>
+</div>
+
+<div style="display:grid;grid-template-columns:3fr 2fr;gap:20px;">
+  <!-- Campagnes IEC -->
+  <div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px;">📢 Campagnes de sensibilisation</div>
+    {% for msg in messages_iec %}
+    <div class="card mb-3">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">{{ msg.titre }}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+            Cible: <strong>{{ msg.get_cible_display }}</strong> ·
+            Type: <strong>{{ msg.get_type_message_display }}</strong> ·
+            Créé le {{ msg.date_creation|date:"d/m/Y" }}
+          </div>
+          <div style="font-size:12px;background:var(--warm-white);border-radius:8px;padding:10px;border-left:3px solid var(--crimson);">
+            {{ msg.contenu|truncatechars:120 }}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          {% if msg.envoye %}
+          <span class="badge-status status-disponible">✓ Envoyé</span>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">
+            {{ msg.nombre_destinataires }} destinataire{{ msg.nombre_destinataires|pluralize }}
+          </div>
+          <div style="font-size:10px;color:var(--muted);">{{ msg.date_envoi|date:"d/m H:i" }}</div>
+          {% else %}
+          <span class="badge-status status-en_attente">En attente</span>
+          <div style="margin-top:8px;">
+            <form method="post" action="{% url 'message_envoyer' msg.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn-blood" style="font-size:11px;padding:6px 12px;"
+                onclick="return confirm('Envoyer ce message à tous les donneurs ciblés ?')">
+                <i class="bi bi-send-fill"></i> Envoyer
+              </button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="card" style="text-align:center;padding:40px;">
+      <div style="font-size:36px;margin-bottom:10px;">📱</div>
+      <div style="color:var(--muted);">Aucun message créé.</div>
+      <a href="{% url 'message_create' %}" class="btn-blood mt-3" style="display:inline-flex;">
+        <i class="bi bi-plus"></i> Créer un message
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Journal SMS -->
+  <div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px;">📋 Journal des SMS récents</div>
+    <div class="card">
+      {% for log in logs_sms %}
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+          <span class="mono" style="font-size:11px;color:var(--muted);">{{ log.destinataire }}</span>
+          <span style="font-size:10px;
+            {% if log.statut == 'envoye' %}color:var(--success);{% elif log.statut == 'simule' %}color:var(--gold);{% else %}color:var(--crimson);{% endif %}">
+            {% if log.statut == 'envoye' %}✓ Envoyé{% elif log.statut == 'simule' %}⚡ Simulé{% else %}✗ Échec{% endif %}
+          </span>
+        </div>
+        <div style="font-size:12px;color:var(--charcoal);">{{ log.message|truncatechars:60 }}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">{{ log.date_envoi|date:"d/m/Y H:i" }}</div>
+      </div>
+      {% empty %}
+      <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">
+        Aucun SMS envoyé pour l'instant
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Info USSD -->
+    <div class="card mt-4" style="background:linear-gradient(135deg,rgba(26,92,139,0.05),rgba(26,92,139,0.02));border-color:rgba(26,92,139,0.2);">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--info);">
+        📞 Service USSD Africa's Talking
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+        Les donneurs peuvent accéder au service via leur téléphone en composant le code USSD.
+      </p>
+      <div style="background:var(--charcoal);border-radius:8px;padding:10px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--gold);text-align:center;">
+        *XXX# → Menu USSD CNTS
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">
+        Endpoint: <code>/ussd/</code> (POST Africa's Talking)
+      </div>
+      <div style="font-size:11px;color:var(--muted);">Menu: Infos don · Stock · Campagnes · Contact</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

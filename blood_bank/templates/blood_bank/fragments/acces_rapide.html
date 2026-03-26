@@ -1,0 +1,171 @@
+<!-- fragments/acces_rapide.html -->
+<style>
+    .quick-access-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .quick-tile {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        text-decoration: none;
+        color: var(--charcoal);
+        transition: all 0.2s ease;
+    }
+
+    .quick-tile:hover {
+        border-color: var(--crimson);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        color: var(--crimson);
+    }
+
+    .quick-tile i {
+        font-size: 18px;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--warm-white);
+        border-radius: 8px;
+        color: var(--slate);
+        transition: all 0.2s ease;
+    }
+
+    .quick-tile:hover i {
+        background: rgba(192, 21, 42, 0.1);
+        color: var(--crimson);
+    }
+
+    .quick-tile-text {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .quick-tile-label {
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .quick-tile-sub {
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .quick-section-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--muted);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .quick-section-title::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+    }
+</style>
+
+<div class="quick-access-wrapper">
+    <div class="quick-section-title">Actions prioritaires</div>
+
+    <div class="quick-access-grid">
+        {% if user.role == 'directeur' or user.role == 'admin' %}
+            <a href="{% url 'donneur_list' %}" class="quick-tile">
+                <i class="bi bi-people"></i>
+                <div class="quick-tile-text">
+                    <span class="quick-tile-label">Donneurs</span>
+                    <span class="quick-tile-sub">Gestion base</span>
+                </div>
+            </a>
+            <a href="{% url 'configuration' %}" class="quick-tile">
+                <i class="bi bi-gear-wide-connected"></i>
+                <div class="quick-tile-text">
+                    <span class="quick-tile-label">Tarification</span>
+                    <span class="quick-tile-sub">Prix & Config</span>
+                </div>
+            </a>
+        {% endif %}
+
+        {% if user.role == 'medecin' or user.role == 'admin' %}
+            <a href="{% url 'examen_en_attente' %}" class="quick-tile">
+                <i class="bi bi-clipboard2-pulse"></i>
+                <div class="quick-tile-text">
+                    <span class="quick-tile-label">Examens</span>
+                    <span class="quick-tile-sub">En attente</span>
+                </div>
+            </a>
+            <a href="{% url 'poche_create' %}" class="quick-tile">
+                <i class="bi bi-droplet-fill"></i>
+                <div class="quick-tile-text">
+                    <span class="quick-tile-label">Prélèvement</span>
+                    <span class="quick-tile-sub">Nouveau don</span>
+                </div>
+            </a>
+        {% endif %}
+
+        {% if user.role == 'technicien' or user.role == 'admin' %}
+            <a href="{% url 'poche_list' %}?statut=en_analyse" class="quick-tile">
+                <i class="bi bi-flask"></i>
+                <div class="quick-tile-text">
+                    <span class="quick-tile-label">Analyses Labo</span>
+                    <span class="quick-tile-sub">Sérologie/Groupage</span>
+                </div>
+            </a>
+        {% endif %}
+
+        {% if user.role == 'gestionnaire' or user.role == 'admin' %}
+            <a href="{% url 'stock_view' %}" class="quick-tile">
+                <i class="bi bi-box-seam"></i>
+                <div class="quick-tile-text">
+                    <span class="quick-tile-label">État du Stock</span>
+                    <span class="quick-tile-sub">Inventaire réel</span>
+                </div>
+            </a>
+        {% endif %}
+
+        {% if user.role == 'responsable' or user.role == 'admin' %}
+            <a href="{% url 'demande_list' %}?statut=en_attente" class="quick-tile">
+                <i class="bi bi-cart-plus"></i>
+                <div class="quick-tile-text">
+                    <span class="quick-tile-label">Demandes</span>
+                    <span class="quick-tile-sub">À traiter</span>
+                </div>
+            </a>
+        {% endif %}
+
+        <!-- Toujours visible : Accueil Candidat -->
+        <a href="{% url 'accueil_candidat' %}" class="quick-tile" style="border-color: var(--success);">
+            <i class="bi bi-door-open" style="color: var(--success);"></i>
+            <div class="quick-tile-text">
+                <span class="quick-tile-label">Accueil</span>
+                <span class="quick-tile-sub">Candidats</span>
+            </div>
+        </a>
+
+        {% if user.role == 'admin' or user.is_superuser %}
+            <a href="{% url 'message_list' %}" class="quick-tile">
+                <i class="bi bi-chat-left-dots"></i>
+                <div class="quick-tile-text">
+                    <span class="quick-tile-label">Campagne SMS</span>
+                    <span class="quick-tile-sub">Communication</span>
+                </div>
+            </a>
+        {% endif %}
+    </div>
+</div>

@@ -1,0 +1,40 @@
+{% extends 'blood_bank/base.html' %}
+{% block content %}
+<div class="container">
+  <h2>Hôpitaux partenaires</h2>
+
+  <div id="map" style="height: 500px;"></div>
+
+  <div class="row mt-3">
+    {% for hopital in hopitaux %}
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-body">
+            <h5>{{ hopital.nom }}</h5>
+            <p><i class="fas fa-map-marker-alt"></i> {{ hopital.adresse }}</p>
+            <p><i class="fas fa-phone"></i> {{ hopital.telephone }}</p>
+            <p><i class="fas fa-location-dot"></i> {{ hopital.quartier }}</p>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+// Initialiser la carte
+var map = L.map('map').setView([-4.2634, 15.2429], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// Charger les hôpitaux
+fetch('/api/hopitaux-geo/')
+  .then(response => response.json())
+  .then(data => {
+    data.hopitaux.forEach(hopital => {
+      L.marker([hopital.lat, hopital.lng])
+        .bindPopup(`<b>${hopital.nom}</b><br>${hopital.adresse}<br>📞 ${hopital.telephone}`)
+        .addTo(map);
+    });
+  });
+</script>
+{% endblock %}

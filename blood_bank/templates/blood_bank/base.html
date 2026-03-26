@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}CNTS Brazzaville{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet"/>
+  <style>
+    :root {
+      --crimson: #C0152A;
+      --crimson-dark: #8B0D1D;
+      --crimson-light: #E8192F;
+      --blood: #7A0E1A;
+      --ivory: #FDF8F5;
+      --warm-white: #FAF5F0;
+      --charcoal: #1A1A1A;
+      --slate: #3D3D3D;
+      --muted: #8A8A8A;
+      --border: #E8E0D8;
+      --gold: #C9A84C;
+      --success: #1A7A4A;
+      --danger: #C0152A;
+      --warning: #C9A84C;
+      --info: #1A5C8B;
+      --sidebar-w: 260px;
+      --topbar-h: 64px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: var(--warm-white);
+      color: var(--charcoal);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    body.login-page {
+      background: #0D0D0D !important;
+      display: block !important;
+      overflow: hidden !important;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      position: fixed; top: 0; left: 0;
+      width: var(--sidebar-w);
+      height: 100vh;
+      background: var(--charcoal);
+      display: flex; flex-direction: column;
+      z-index: 1000;
+      overflow: hidden;
+    }
+
+    .sidebar-brand {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .brand-icon {
+      width: 44px; height: 44px;
+      background: var(--crimson);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; color: white;
+      margin-bottom: 10px;
+    }
+
+    .brand-name {
+      font-size: 13px; font-weight: 700;
+      color: white; letter-spacing: 0.5px;
+      line-height: 1.3;
+    }
+
+    .brand-sub {
+      font-size: 10px; color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .sidebar-nav { flex: 1; overflow-y: auto; padding: 16px 0; }
+
+    .nav-section-label {
+      font-size: 9px; font-weight: 700;
+      color: var(--muted); letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 8px 20px 4px;
+      margin-top: 8px;
+    }
+
+    .nav-item a {
+      display: flex; align-items: center; gap: 12px;
+      padding: 9px 20px;
+      color: rgba(255,255,255,0.55);
+      text-decoration: none;
+      font-size: 13px; font-weight: 500;
+      border-left: 3px solid transparent;
+      transition: all 0.15s ease;
+    }
+
+    .nav-item a:hover {
+      color: white;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .nav-item a.active {
+      color: white;
+      background: rgba(192, 21, 42, 0.15);
+      border-left-color: var(--crimson);
+    }
+
+    .nav-item a i { font-size: 16px; width: 20px; text-align: center; }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .user-card {
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .user-avatar {
+      width: 36px; height: 36px;
+      background: var(--crimson);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 14px; font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .user-info .name {
+      font-size: 12px; font-weight: 600; color: white;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 140px;
+    }
+
+    .user-info .role-badge {
+      font-size: 10px; color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── MAIN ── */
+    .main-wrap {
+      margin-left: var(--sidebar-w);
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+
+    .topbar {
+      position: sticky; top: 0;
+      height: var(--topbar-h);
+      background: var(--ivory);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 28px;
+      z-index: 100;
+      gap: 16px;
+    }
+
+    .topbar-title {
+      font-size: 16px; font-weight: 700;
+      color: var(--charcoal);
+      flex: 1;
+    }
+
+    .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* Nouveau style pour le menu utilisateur dans la topbar */
+    .user-menu {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-right: 10px;
+      padding-right: 15px;
+      border-right: 1px solid var(--border);
+    }
+    .user-role {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-warning {
+      background-color: var(--warning);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .btn-topbar {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--slate);
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+      font-size: 15px;
+    }
+
+    .btn-topbar:hover { background: var(--crimson); color: white; border-color: var(--crimson); }
+
+    .page-content {
+      flex: 1; padding: 28px;
+    }
+
+    /* ── CARDS ── */
+    .card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .stat-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+
+    .stat-card .stat-icon {
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; margin-bottom: 12px;
+    }
+
+    .stat-card .stat-value {
+      font-size: 28px; font-weight: 800;
+      color: var(--charcoal); line-height: 1;
+    }
+
+    .stat-card .stat-label {
+      font-size: 12px; color: var(--muted);
+      margin-top: 4px; font-weight: 500;
+    }
+
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      right: -20px; top: -20px;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      opacity: 0.06;
+    }
+
+    .stat-crimson .stat-icon { background: rgba(192,21,42,0.1); color: var(--crimson); }
+    .stat-crimson::after { background: var(--crimson); }
+
+    .stat-gold .stat-icon { background: rgba(201,168,76,0.1); color: var(--gold); }
+    .stat-gold::after { background: var(--gold); }
+
+    .stat-success .stat-icon { background: rgba(26,122,74,0.1); color: var(--success); }
+    .stat-success::after { background: var(--success); }
+
+    .stat-info .stat-icon { background: rgba(26,92,139,0.1); color: var(--info); }
+    .stat-info::after { background: var(--info); }
+
+    /* ── BLOOD GROUP BADGES ── */
+    .blood-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      font-weight: 800; font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .blood-o { background: rgba(192,21,42,0.12); color: var(--crimson); }
+    .blood-a { background: rgba(26,92,139,0.12); color: var(--info); }
+    .blood-b { background: rgba(26,122,74,0.12); color: var(--success); }
+    .blood-ab { background: rgba(201,168,76,0.12); color: var(--gold); }
+
+    /* ── TABLE ── */
+    .table-clean {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+    }
+
+    .table-clean th {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--muted); padding: 10px 16px;
+      background: var(--warm-white);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .table-clean td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px; vertical-align: middle;
+    }
+
+    .table-clean tr:last-child td { border-bottom: none; }
+    .table-clean tbody tr:hover { background: rgba(192,21,42,0.02); }
+
+    /* ── FORMS ── */
+    .form-control, .form-select {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 13px;
+      font-size: 13px;
+      font-family: 'Sora', sans-serif;
+      color: var(--charcoal);
+      background: white;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .form-control:focus, .form-select:focus {
+      border-color: var(--crimson);
+      box-shadow: 0 0 0 3px rgba(192,21,42,0.1);
+      outline: none;
+    }
+
+    .form-label {
+      font-size: 12px; font-weight: 600;
+      color: var(--slate); margin-bottom: 5px;
+    }
+
+    /* ── BUTTONS ── */
+    .btn-blood {
+      background: var(--crimson); color: white;
+      border: none; border-radius: 8px;
+      padding: 9px 18px; font-size: 13px;
+      font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 7px;
+      transition: all 0.15s;
+      text-decoration: none;
+      font-family: 'Sora', sans-serif;
+    }
+
+    .btn-blood:hover { background: var(--crimson-dark); color: white; transform: translateY(-1px); }
+
+    .btn-outline-blood {
+      background: transparent; color: var(--crimson);
+      border: 1.5px solid var(--crimson); border-radius: 8px;
+      padding: 8px 18px; font-size: 13px;
+      font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 7px;
+      transition: all 0.15s;
+      text-decoration: none;
+      font-family: 'Sora', sans-serif;
+    }
+
+    .btn-outline-blood:hover { background: var(--crimson); color: white; }
+
+    .btn-sm-ghost {
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 6px; padding: 5px 10px;
+      font-size: 12px; color: var(--slate);
+      cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+      text-decoration: none;
+      transition: all 0.12s;
+      font-family: 'Sora', sans-serif;
+    }
+
+    .btn-sm-ghost:hover { background: var(--charcoal); color: white; border-color: var(--charcoal); }
+
+    /* ── STATUS BADGES ── */
+    .badge-status {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .badge-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    .status-disponible { background: rgba(26,122,74,0.1); color: var(--success); }
+    .status-en_attente { background: rgba(201,168,76,0.1); color: var(--gold); }
+    .status-critique { background: rgba(192,21,42,0.1); color: var(--crimson); }
+    .status-rejetee { background: rgba(90,90,90,0.1); color: var(--muted); }
+    .status-livree { background: rgba(26,92,139,0.1); color: var(--info); }
+    .status-validee { background: rgba(26,122,74,0.1); color: var(--success); }
+
+    /* ── URGENCE ── */
+    .urgence-critique { color: var(--crimson); font-weight: 700; }
+    .urgence-urgent { color: var(--gold); font-weight: 600; }
+    .urgence-normal { color: var(--muted); }
+
+    /* ── ALERTS ── */
+    .alert-cnts {
+      border-radius: 10px; padding: 12px 16px;
+      border: none; font-size: 13px;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .alert-cnts.danger { background: rgba(192,21,42,0.08); color: var(--crimson); }
+    .alert-cnts.warning { background: rgba(201,168,76,0.08); color: #7a6020; }
+    .alert-cnts.success { background: rgba(26,122,74,0.08); color: var(--success); }
+    .alert-cnts.info { background: rgba(26,92,139,0.08); color: var(--info); }
+
+    /* ── MESSAGES DJANGO ── */
+    .messages-container {
+      position: fixed; top: 20px; right: 20px;
+      z-index: 9999; max-width: 360px;
+    }
+
+    .message-toast {
+      background: white;
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      display: flex; align-items: center; gap: 12px;
+      font-size: 13px;
+      border-left: 4px solid var(--crimson);
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(120%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ── PAGE HEADER ── */
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .page-title {
+      font-size: 22px; font-weight: 800;
+      color: var(--charcoal);
+    }
+
+    .page-subtitle {
+      font-size: 13px; color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* ── STOCK BAR ── */
+    .stock-bar {
+      height: 6px; background: var(--border);
+      border-radius: 3px; overflow: hidden;
+    }
+
+    .stock-bar-fill {
+      height: 100%; border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .fill-ok { background: var(--success); }
+    .fill-warn { background: var(--gold); }
+    .fill-crit { background: var(--crimson); }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* ── MONO ── */
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .main-wrap { margin-left: 0; }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if user.is_authenticated %}
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">🩸</div>
+    <div class="brand-name">CNTS Brazzaville</div>
+    <div class="brand-sub">Banque de Sang</div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <div class="nav-item">
+        <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-grid-1x2"></i> Tableau de bord
+        </a>
+    </div>
+    <div class="nav-item">
+        <a href="{% url 'donneur_list' %}" class="{% if 'donneur' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-person-heart"></i> Donneurs
+        </a>
+    </div>
+    <div class="nav-item">
+        <a href="{% url 'donneur_carte' %}" class="{% if request.resolver_match.url_name == 'donneur_carte' %}active{% endif %}">
+            <i class="bi bi-geo-alt"></i> Carte géo
+        </a>
+    </div>
+
+    <div class="nav-item">
+        <a href="{% url 'accueil_candidat' %}" class="{% if 'accueil' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-person-check"></i> Accueil candidats
+        </a>
+    </div>
+    <div class="nav-item">
+        <a href="{% url 'visiteur_list' %}" class="{% if 'visiteur' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-people"></i> Visiteurs CNTS
+        </a>
+    </div>
+
+    <div class="nav-section-label">Opérations</div>
+    <div class="nav-item">
+        <a href="{% url 'poche_list' %}" class="{% if 'poche' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-droplet-half"></i> Poches de sang
+        </a>
+    </div>
+    <div class="nav-item">
+        <a href="{% url 'demande_list' %}" class="{% if 'demande' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-file-medical"></i> Demandes
+        </a>
+    </div>
+    <div class="nav-item">
+        <a href="{% url 'stock_view' %}" class="{% if 'stock' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-box-seam"></i> Stock
+        </a>
+    </div>
+    <div class="nav-item">
+        <a href="{% url 'hopital_list' %}" class="{% if 'hopital' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-hospital"></i> Hôpitaux
+        </a>
+    </div>
+
+    <!-- NOUVELLE SECTION POUR LES CARTES DONNEURS -->
+    {% if user.role == 'directeur' or user.role == 'admin' %}
+    <div class="nav-section-label">Cartes donneurs</div>
+    <div class="nav-item">
+        <a href="{% url 'donneur_list' %}">
+            <i class="bi bi-id-card"></i> Générer une carte
+            <small class="text-muted d-block" style="font-size: 9px;">(sélectionner un donneur)</small>
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="nav-section-label">Communication</div>
+    <div class="nav-item">
+        <a href="{% url 'message_list' %}" class="{% if 'message' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-chat-dots"></i> SMS / IEC
+        </a>
+    </div>
+
+    <div class="nav-section-label">Admin</div>
+    <div class="nav-item">
+        <a href="{% url 'statistiques' %}" class="{% if request.resolver_match.url_name == 'statistiques' %}active{% endif %}">
+            <i class="bi bi-bar-chart-line"></i> Statistiques
+        </a>
+    </div>
+    {% if user.role == 'admin' or user.is_superuser %}
+    <div class="nav-item">
+        <a href="{% url 'utilisateur_list' %}" class="{% if 'utilisateur' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-people"></i> Utilisateurs
+        </a>
+    </div>
+    <div class="nav-item">
+        <a href="{% url 'configuration' %}" class="{% if request.resolver_match.url_name == 'configuration' %}active{% endif %}">
+            <i class="bi bi-gear"></i> Configuration
+        </a>
+    </div>
+    {% endif %}
+</nav>
+
+  <div class="sidebar-footer">
+    <div class="user-card">
+      <div class="user-avatar">{{ user.username|first|upper }}</div>
+      <div class="user-info">
+        <div class="name">{{ user.get_full_name|default:user.username }}</div>
+        <div class="role-badge">{{ user.get_role_display }}</div>
+      </div>
+      <a href="{% url 'logout' %}" class="btn-topbar ms-auto" title="Déconnexion" style="background:transparent;border-color:rgba(255,255,255,0.1);color:var(--muted)">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main-wrap">
+  <div class="topbar">
+    <div class="topbar-title">{% block page_title %}{% endblock %}</div>
+
+    <div class="topbar-actions">
+      <!-- Logique de rôle ajoutée dans la topbar -->
+      <div class="user-menu">
+        <span class="user-role">{{ user.get_role_display }}</span>
+        {% if user.role == 'directeur' or user.role == 'admin' %}
+          <span class="badge badge-warning">Directeur</span>
+        {% endif %}
+      </div>
+
+      <a href="{% url 'donneur_create' %}" class="btn-topbar" title="Nouveau donneur">
+        <i class="bi bi-person-plus"></i>
+      </a>
+      <a href="{% url 'poche_create' %}" class="btn-topbar" title="Nouveau prélèvement">
+        <i class="bi bi-droplet-fill"></i>
+      </a>
+      <a href="{% url 'demande_create' %}" class="btn-topbar" title="Nouvelle demande">
+        <i class="bi bi-plus-circle"></i>
+      </a>
+      <a href="{% url 'profil' %}" class="btn-topbar" title="Mon profil">
+        <i class="bi bi-person-circle"></i>
+      </a>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <!-- Django Messages -->
+    {% if messages %}
+    <div class="messages-container" id="toastContainer">
+      {% for message in messages %}
+      <div class="message-toast" onclick="this.remove()">
+        <span style="font-size:18px">
+          {% if message.tags == 'success' %}✅{% elif message.tags == 'error' or message.tags == 'danger' %}❌{% elif message.tags == 'warning' %}⚠️{% else %}ℹ️{% endif %}
+        </span>
+        {{ message }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+{% else %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Auto-dismiss toasts
+  setTimeout(() => {
+    document.querySelectorAll('.message-toast').forEach(el => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateX(120%)';
+      el.style.transition = 'all 0.3s';
+      setTimeout(() => el.remove(), 300);
+    });
+  }, 4000);
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

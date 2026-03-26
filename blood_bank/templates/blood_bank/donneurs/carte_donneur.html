@@ -1,0 +1,236 @@
+{% extends 'blood_bank/base.html' %}
+{% load static %}
+
+{% block title %}Carte donneur - {{ donneur.nom_complet }}{% endblock %}
+
+{% block page_title %}Carte donneur{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'donneur_list' %}">Donneurs</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'donneur_detail' donneur.pk %}">{{ donneur.nom_complet }}</a></li>
+                    <li class="breadcrumb-item active">Carte donneur</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12 text-center mb-4">
+            <h2>Carte donneur - {{ donneur.nom_complet }}</h2>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            {% if is_directeur and eligible and not carte %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    Ce donneur est éligible pour recevoir sa carte ({{ nb_dons }}/{{ seuil }} dons).
+                    <form method="post" class="mt-3">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-id-card"></i> Générer la carte donneur
+                        </button>
+                    </form>
+                </div>
+            {% endif %}
+
+            {% if carte %}
+                <div class="carte-donneur">
+                    <div class="carte-header">
+                        <div class="row">
+                            <div class="col-4">
+                                <img src="{% static 'img/logo-cnts.png' %}" alt="CNTS" class="logo-carte"
+                                     onerror="this.src='https://via.placeholder.com/80?text=CNTS'">
+                            </div>
+                            <div class="col-8 text-end">
+                                <h3>CARTE DE DONNEUR</h3>
+                                <p class="text-muted">N° {{ carte.numero_carte }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="carte-body">
+                        <div class="row">
+                            <div class="col-md-4 text-center">
+                                {% if carte.photo %}
+                                    <img src="{{ carte.photo.url }}" alt="Photo" class="photo-donneur">
+                                {% else %}
+                                    <div class="photo-placeholder">
+                                        <i class="fas fa-user-circle fa-5x"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-8">
+                                <h4>{{ donneur.nom_complet }}</h4>
+                                <p><strong>N° Carte:</strong> {{ carte.numero_carte }}</p>
+                                <p><strong>Code unique:</strong> {{ donneur.code_unique }}</p>
+                                <p><strong>Groupe sanguin:</strong>
+                                    <span class="badge badge-danger">{{ donneur.groupe_sanguin|default:"Non déterminé" }}</span>
+                                </p>
+                                <p><strong>Né le:</strong> {{ donneur.date_naissance|date:"d/m/Y" }}</p>
+                                <p><strong>Type:</strong> {{ donneur.get_type_donneur_display }}</p>
+                                <p><strong>Nombre de dons:</strong> {{ nb_dons }}</p>
+                                <p><strong>Crédits solidaires:</strong> {{ donneur.credit_solidaire }}</p>
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+                            <div class="col-md-6 text-center">
+                                <div class="qr-code">
+                                    {% if carte.qr_code %}
+                                        <img src="{{ carte.qr_code.url }}" alt="QR Code">
+                                    {% elif carte.qr_code_data %}
+                                        <img src="data:image/png;base64,{{ carte.qr_code_data }}" alt="QR Code">
+                                    {% else %}
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-qrcode"></i> QR Code non disponible
+                                        </div>
+                                    {% endif %}
+                                    <p class="text-center small mt-2">Scannez pour vérifier l'authenticité</p>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="info-carte">
+                                    <p><strong>Émise le:</strong> {{ carte.date_emission|date:"d/m/Y H:i" }}</p>
+                                    <p><strong>Expire le:</strong> {{ carte.date_expiration_carte|date:"d/m/Y" }}</p>
+                                    <p><strong>Statut:</strong>
+                                        {% if carte.est_valide %}
+                                            <span class="badge badge-success">Valide</span>
+                                        {% else %}
+                                            <span class="badge badge-danger">Expirée</span>
+                                        {% endif %}
+                                    </p>
+                                    <p><strong>Émise par:</strong> {{ carte.emise_par.get_full_name|default:carte.emise_par }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="carte-footer">
+                        <p class="text-center">
+                            <small>Cette carte est la propriété du CNTS. En cas de perte, veuillez contacter le centre.</small>
+                        </p>
+                        <p class="text-center">
+                            <small>Centre National de Transfusion Sanguine - Brazzaville, Congo</small>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-3 text-center">
+                    <button onclick="window.print()" class="btn btn-primary">
+                        <i class="fas fa-print"></i> Imprimer la carte
+                    </button>
+                    <a href="{% url 'donneur_detail' donneur.pk %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Retour
+                    </a>
+                </div>
+            {% endif %}
+
+            {% if not eligible and not carte %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle"></i>
+                    Ce donneur n'est pas encore éligible pour une carte.
+                    <ul class="mt-2">
+                        <li>Classification actuelle: <strong>{{ donneur.get_classification_display }}</strong></li>
+                        <li>Nombre de dons: <strong>{{ nb_dons }}</strong> / {{ seuil }} requis</li>
+                        <li>Le donneur doit être classé comme "Donneur" et avoir au moins {{ seuil }} dons.</li>
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.carte-donneur {
+    max-width: 800px;
+    margin: 0 auto;
+    border: 2px solid #e74c3c;
+    border-radius: 10px;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+}
+.carte-header {
+    border-bottom: 2px solid #e74c3c;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+.carte-header .logo-carte {
+    max-height: 60px;
+}
+.carte-header h3 {
+    color: #e74c3c;
+    margin: 0;
+    font-size: 1.2rem;
+}
+.photo-donneur {
+    width: 150px;
+    height: 150px;
+    border-radius: 10px;
+    object-fit: cover;
+    border: 2px solid #ddd;
+}
+.photo-placeholder {
+    text-align: center;
+    color: #999;
+}
+.qr-code img {
+    width: 150px;
+    height: 150px;
+    border: 1px solid #ddd;
+    padding: 5px;
+    background: white;
+}
+.carte-footer {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+.info-carte {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+}
+.badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+}
+.badge-success {
+    background: #28a745;
+    color: white;
+}
+.badge-danger {
+    background: #dc3545;
+    color: white;
+}
+.badge-warning {
+    background: #ffc107;
+    color: #212529;
+}
+@media print {
+    .btn, .navbar, .sidebar, .breadcrumb, .alert, .page-header {
+        display: none !important;
+    }
+    .carte-donneur {
+        box-shadow: none;
+        border: 1px solid #ccc;
+        margin: 0;
+        padding: 10px;
+    }
+    .container {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+</style>
+{% endblock %}

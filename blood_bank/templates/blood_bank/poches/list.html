@@ -1,0 +1,237 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Poches de sang - CNTS{% endblock %}
+{% block page_title %}Poches de sang{% endblock %}
+
+{% block extra_css %}
+<style>
+  .poche-row-expire { background: rgba(192,21,42,0.03) !important; }
+  .expiry-crit { color: var(--crimson); font-weight: 700; font-size: 12px; }
+  .expiry-warn { color: var(--gold);   font-weight: 600; font-size: 12px; }
+  .expiry-ok   { color: var(--muted);  font-size: 12px; }
+  .expiry-days { color: var(--success); font-size: 11px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Gestion des poches</div>
+    <div class="page-subtitle">Traçabilité complète — collecte → analyses → délivrance</div>
+  </div>
+  <a href="{% url 'poche_create' %}" class="btn-blood">
+    <i class="bi bi-droplet-fill"></i> Nouveau prélèvement
+  </a>
+</div>
+
+<!-- ── COMPTEURS RAPIDES ── -->
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+  <div class="stat-card stat-crimson">
+    <div class="stat-icon"><i class="bi bi-droplet-half"></i></div>
+    <div class="stat-value">{{ total_poches }}</div>
+    <div class="stat-label">Total collectées</div>
+  </div>
+  <div class="stat-card stat-success">
+    <div class="stat-icon"><i class="bi bi-check-circle"></i></div>
+    <div class="stat-value">{{ total_disponibles }}</div>
+    <div class="stat-label">Disponibles</div>
+  </div>
+  <div class="stat-card stat-gold">
+    <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+    <div class="stat-value">{{ total_en_analyse }}</div>
+    <div class="stat-label">En analyse</div>
+  </div>
+  <div class="stat-card stat-info">
+    <div class="stat-icon"><i class="bi bi-box-seam"></i></div>
+    <div class="stat-value">{{ total_attribuees }}</div>
+    <div class="stat-label">Attribuées</div>
+  </div>
+  <div class="stat-card stat-crimson">
+    <div class="stat-icon"><i class="bi bi-exclamation-triangle"></i></div>
+    <div class="stat-value">{{ total_expirant }}</div>
+    <div class="stat-label">Expirant ≤ 7j</div>
+  </div>
+</div>
+
+<!-- ── FILTRES ── -->
+<div class="card mb-4">
+  <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+    <div style="flex:1;min-width:200px;">
+      <label class="form-label">Rechercher</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control"
+             placeholder="Code barre, nom du donneur…"/>
+    </div>
+    <div style="min-width:160px;">
+      <label class="form-label">Statut</label>
+      <select name="statut" class="form-select">
+        <option value="">Tous les statuts</option>
+        {% for val, label in statuts %}
+        <option value="{{ val }}" {% if val == statut %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width:130px;">
+      <label class="form-label">Groupe sanguin</label>
+      <select name="groupe" class="form-select">
+        <option value="">Tous</option>
+        {% for g in groupes %}
+        <option value="{{ g }}" {% if g == groupe %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-blood">
+      <i class="bi bi-search"></i> Filtrer
+    </button>
+    <a href="{% url 'poche_list' %}" class="btn-sm-ghost">
+      <i class="bi bi-x"></i> Réinitialiser
+    </a>
+  </form>
+</div>
+
+<!-- ── TABLEAU ── -->
+<div class="card">
+  <table class="table-clean">
+    <thead>
+      <tr>
+        <th>Code barre</th>
+        <th>Donneur</th>
+        <th>Groupe</th>
+        <th>Prélèvement</th>
+        <th>Expiration</th>
+        <th>Volume</th>
+        <th>Tests séro.</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in poches %}
+      <tr {% if p.est_expiree and p.statut == 'disponible' %}class="poche-row-expire"{% endif %}>
+
+        <!-- Code barre -->
+        <td>
+          <a href="{% url 'poche_detail' p.pk %}"
+             style="text-decoration:none;">
+            <span class="mono" style="font-size:11px;background:var(--warm-white);
+                  padding:3px 8px;border-radius:5px;color:var(--crimson);">
+              {{ p.code_barre }}
+            </span>
+          </a>
+        </td>
+
+        <!-- Donneur -->
+        <td>
+          <a href="{% url 'donneur_detail' p.donneur.pk %}"
+             style="color:var(--charcoal);font-weight:500;font-size:13px;">
+            {{ p.donneur.nom_complet }}
+          </a>
+          <div style="font-size:11px;color:var(--muted);">{{ p.donneur.telephone }}</div>
+        </td>
+
+        <!-- Groupe sanguin -->
+        <td>
+          <span class="blood-badge blood-{{ p.groupe_sanguin|first|lower }}">
+            {{ p.groupe_sanguin }}
+          </span>
+        </td>
+
+        <!-- Date prélèvement -->
+        <td style="font-size:12px;color:var(--slate);">
+          {{ p.date_prelevement|date:"d/m/Y" }}
+        </td>
+
+        <!-- Date expiration -->
+        <td>
+          {% if p.est_expiree %}
+            <span class="expiry-crit">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              {{ p.date_expiration|date:"d/m/Y" }}
+            </span>
+            <div style="font-size:10px;color:var(--crimson);">Expirée</div>
+          {% elif p.jours_restants <= 7 %}
+            <span class="expiry-warn">
+              <i class="bi bi-clock-fill"></i>
+              {{ p.date_expiration|date:"d/m/Y" }}
+            </span>
+            <div style="font-size:10px;color:var(--gold);">J‑{{ p.jours_restants }}</div>
+          {% else %}
+            <span class="expiry-ok">{{ p.date_expiration|date:"d/m/Y" }}</span>
+            <div class="expiry-days">J‑{{ p.jours_restants }}</div>
+          {% endif %}
+        </td>
+
+        <!-- Volume -->
+        <td style="font-size:12px;color:var(--muted);">{{ p.volume_ml }} ml</td>
+
+        <!-- Tests sérologiques -->
+        <td>
+          {% if p.test_vih is None %}
+            <span style="font-size:11px;color:var(--muted);">
+              <i class="bi bi-hourglass-split"></i> En attente
+            </span>
+          {% elif p.tests_ok %}
+            <span style="font-size:11px;color:var(--success);font-weight:600;">
+              <i class="bi bi-shield-check"></i> Tous OK
+            </span>
+          {% else %}
+            <span style="font-size:11px;color:var(--crimson);font-weight:600;">
+              <i class="bi bi-shield-x"></i> Rejeté
+            </span>
+            <div style="font-size:10px;color:var(--crimson);">
+              {% if not p.test_vih %}VIH {% endif %}
+              {% if not p.test_hepatite %}Hépatite {% endif %}
+              {% if not p.test_syphilis %}Syphilis{% endif %}
+            </div>
+          {% endif %}
+        </td>
+
+        <!-- Statut badge -->
+        <td>
+          <span class="badge-status
+            {% if p.statut == 'disponible' %}status-disponible
+            {% elif p.statut == 'rejetee' %}status-rejetee
+            {% elif p.statut == 'utilisee' or p.statut == 'livree' %}status-livree
+            {% elif p.statut == 'validee' %}status-validee
+            {% else %}status-en_attente{% endif %}">
+            {{ p.get_statut_display }}
+          </span>
+        </td>
+
+        <!-- Actions -->
+        <td>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <a href="{% url 'poche_detail' p.pk %}" class="btn-sm-ghost" title="Voir le détail">
+              <i class="bi bi-eye"></i>
+            </a>
+            {% if p.statut == 'collecte' or p.statut == 'en_analyse' %}
+            <a href="{% url 'poche_analyser' p.pk %}" class="btn-sm-ghost"
+               style="color:var(--crimson);border-color:var(--crimson);" title="Analyser">
+              <i class="bi bi-clipboard2-pulse"></i>
+            </a>
+            {% endif %}
+          </div>
+        </td>
+
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="9" style="text-align:center;padding:56px 20px;color:var(--muted);">
+          <div style="font-size:40px;margin-bottom:12px;">💉</div>
+          <div style="font-weight:600;margin-bottom:6px;">Aucune poche trouvée</div>
+          <div style="font-size:12px;margin-bottom:16px;">
+            {% if q or statut or groupe %}
+              Aucun résultat pour ces filtres.
+              <a href="{% url 'poche_list' %}" style="color:var(--crimson);">Effacer les filtres</a>
+            {% else %}
+              Aucun prélèvement enregistré pour l'instant.
+            {% endif %}
+          </div>
+          <a href="{% url 'poche_create' %}" class="btn-blood" style="display:inline-flex;">
+            <i class="bi bi-droplet-fill"></i> Enregistrer le premier prélèvement
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

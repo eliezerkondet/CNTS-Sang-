@@ -1,0 +1,160 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Donneurs - CNTS{% endblock %}
+{% block page_title %}Donneurs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Gestion des donneurs</div>
+    <div class="page-subtitle">{{ donneurs.count }} donneur{{ donneurs.count|pluralize }} enregistré{{ donneurs.count|pluralize }}</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{% url 'donneur_carte' %}" class="btn-outline-blood"><i class="bi bi-geo-alt"></i> Carte géo</a>
+    <a href="{% url 'donneur_create' %}" class="btn-blood"><i class="bi bi-person-plus"></i> Nouveau donneur</a>
+  </div>
+</div>
+
+<!-- FILTRES -->
+<div class="card mb-4">
+  <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+    <div style="flex:1;min-width:200px;">
+      <label class="form-label">Rechercher</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Nom, code, téléphone..."/>
+    </div>
+    <div style="min-width:130px;">
+      <label class="form-label">Groupe sanguin</label>
+      <select name="groupe" class="form-select">
+        <option value="">Tous</option>
+        {% for g in groupes %}
+        <option value="{{ g }}" {% if g == groupe %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width:150px;">
+      <label class="form-label">Type de don</label>
+      <select name="type" class="form-select">
+        <option value="">Tous</option>
+        <option value="benevole" {% if type_d == 'benevole' %}selected{% endif %}>Bénévole</option>
+        <option value="familial" {% if type_d == 'familial' %}selected{% endif %}>Familial</option>
+        <option value="remunere" {% if type_d == 'remunere' %}selected{% endif %}>Rémunéré</option>
+      </select>
+    </div>
+
+    <!-- Nouveau filtre donneurs à risque -->
+    <div style="min-width:150px;">
+      <label class="form-label">Statut Risque</label>
+      <select name="risque" class="form-select">
+        <option value="">Tous les statuts</option>
+        <option value="oui" {% if risque == 'oui' %}selected{% endif %}>À risque ⚠️</option>
+        <option value="non" {% if risque == 'non' %}selected{% endif %}>Sécurisé ✓</option>
+      </select>
+    </div>
+
+    <button type="submit" class="btn-blood"><i class="bi bi-search"></i> Filtrer</button>
+    <a href="{% url 'donneur_list' %}" class="btn-sm-ghost">Réinitialiser</a>
+  </form>
+</div>
+
+<!-- TABLE -->
+<div class="card">
+  <table class="table-clean">
+    <thead>
+      <tr>
+        <th>Donneur</th>
+        <th>Classification</th>
+        <th>Groupe</th>
+        <th>Risque</th>
+        <th>Dons</th>
+        <th>Crédits</th>
+        <th>Peut donner</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in donneurs %}
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:36px;height:36px;background:rgba(192,21,42,0.1);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--crimson);">
+              {{ d.nom_complet|first }}
+            </div>
+            <div>
+              <div style="font-weight:600;">{{ d.nom_complet }}</div>
+              <div style="font-size:11px;color:var(--muted);">Code: {{ d.code_unique }}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <span class="badge-status {% if d.classification == 'donneur' %}status-validee{% elif d.classification == 'candidat' %}status-livree{% else %}status-critique{% endif %}">
+            {{ d.get_classification_display }}
+          </span>
+        </td>
+        <td>
+          <span class="blood-badge blood-{{ d.groupe_sanguin|first|lower }}">{{ d.groupe_sanguin|default:"?" }}</span>
+        </td>
+        <td>
+          {% if d.est_donneur_risque %}
+            <span class="badge-status status-critique" title="Antécédents à risque">⚠️ Risque</span>
+          {% else %}
+            <span class="badge-status status-validee">✓ Sécurisé</span>
+          {% endif %}
+        </td>
+        <td>
+          <span style="font-weight:700;">{{ d.nombre_dons }}</span>
+        </td>
+        <td>
+          <span style="background:rgba(201,168,76,0.1);color:#7a6020;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">
+            ⭐ {{ d.credit_solidaire }}
+          </span>
+        </td>
+        <td>
+          {% if d.peut_donner %}
+          <span style="color:var(--success);font-size:12px;font-weight:600;">✓ Oui</span>
+          {% else %}
+          <span style="color:var(--muted);font-size:12px;">⏳ Non</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <a href="{% url 'donneur_detail' d.pk %}" class="btn-sm-ghost" title="Détails">
+              <i class="bi bi-eye"></i>
+            </a>
+
+            {% if user.role == 'directeur' or user.role == 'admin' %}
+              {% if d.classification == 'donneur' %}
+                <a href="{% url 'carte_donneur_view' d.pk %}" class="btn-sm-ghost" title="Carte Donneur" style="color:var(--info);border-color:var(--info);">
+                  <i class="bi bi-card-heading"></i>
+                </a>
+              {% endif %}
+            {% endif %}
+
+            <a href="{% url 'donneur_edit' d.pk %}" class="btn-sm-ghost" title="Modifier">
+              <i class="bi bi-pencil"></i>
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="8" style="text-align:center;padding:40px;color:var(--muted);">
+          <div style="font-size:32px;margin-bottom:8px;">🩸</div>
+          Aucun donneur trouvé.
+          <a href="{% url 'donneur_create' %}" style="color:var(--crimson);">Enregistrer le premier donneur</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Message d'aide pour le directeur -->
+{% if user.role == 'directeur' or user.role == 'admin' %}
+<div class="alert alert-info mt-3" style="background:rgba(26,92,139,0.08);border:1px solid var(--info);border-radius:10px;padding:12px;">
+  <i class="bi bi-info-circle"></i>
+  <strong>Génération de carte :</strong>
+  Pour générer une carte donneur (avec QR code), cliquez sur le bouton
+  <i class="bi bi-card-heading"></i>
+  à côté du donneur éligible (ayant {{ config.seuil_credits }} dons ou plus et classification "Donneur").
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends 'blood_bank/base.html' %}
+{% block content %}
+<div class="container">
+  <h2>Examen médical - {{ donneur.nom_complet }}</h2>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="card">
+      <div class="card-header">
+        <h4>Critères d'éligibilité</h4>
+      </div>
+      <div class="card-body">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="poids_ok" name="poids_ok"
+                 {% if examen.poids_ok %}checked{% endif %}>
+          <label class="form-check-label" for="poids_ok">
+            Poids ≥ 50 kg
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="tension_ok" name="tension_ok"
+                 {% if examen.tension_ok %}checked{% endif %}>
+          <label class="form-check-label" for="tension_ok">
+            Tension artérielle normale
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="hemoglobine_ok" name="hemoglobine_ok"
+                 {% if examen.hemoglobine_ok %}checked{% endif %}>
+          <label class="form-check-label" for="hemoglobine_ok">
+            Taux d'hémoglobine suffisant (≥ 12.5 g/dL)
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="pas_de_maladie" name="pas_de_maladie"
+                 {% if examen.pas_de_maladie %}checked{% endif %}>
+          <label class="form-check-label" for="pas_de_maladie">
+            Pas de maladie chronique
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="pas_de_medicament" name="pas_de_medicament"
+                 {% if examen.pas_de_medicament %}checked{% endif %}>
+          <label class="form-check-label" for="pas_de_medicament">
+            Pas sous médication incompatible
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="pas_operation_recente" name="pas_operation_recente"
+                 {% if examen.pas_operation_recente %}checked{% endif %}>
+          <label class="form-check-label" for="pas_operation_recente">
+            Pas d'opération récente (6 derniers mois)
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="pas_grossesse" name="pas_grossesse"
+                 {% if examen.pas_grossesse %}checked{% endif %}>
+          <label class="form-check-label" for="pas_grossesse">
+            Pas de grossesse en cours
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="pas_allaitement" name="pas_allaitement"
+                 {% if examen.pas_allaitement %}checked{% endif %}>
+          <label class="form-check-label" for="pas_allaitement">
+            Pas d'allaitement en cours
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="pas_tatouage" name="pas_tatouage"
+                 {% if examen.pas_tatouage %}checked{% endif %}>
+          <label class="form-check-label" for="pas_tatouage">
+            Pas de tatouage/percing récent (12 mois)
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="pas_voyage_risque" name="pas_voyage_risque"
+                 {% if examen.pas_voyage_risque %}checked{% endif %}>
+          <label class="form-check-label" for="pas_voyage_risque">
+            Pas de voyage en zone endémique récent
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">
+        <h4>Résultat</h4>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label for="motif_inaptitude">Motif d'inaptitude (si applicable)</label>
+          <textarea class="form-control" id="motif_inaptitude" name="motif_inaptitude" rows="3">{{ examen.motif_inaptitude }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-3">Enregistrer l'examen</button>
+  </form>
+</div>
+{% endblock %}

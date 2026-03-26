@@ -1,0 +1,177 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Stock - CNTS{% endblock %}
+{% block page_title %}Gestion du stock{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Stock sanguin</div>
+    <div class="page-subtitle">Inventaire en temps réel · Seuil d'alerte: {{ config.seuil_alerte_stock }} poches</div>
+  </div>
+  <a href="{% url 'poche_create' %}" class="btn-blood"><i class="bi bi-plus-circle"></i> Ajouter un prélèvement</a>
+</div>
+
+{% if alertes %}
+<div class="card mb-4" style="border-color:rgba(192,21,42,0.3);background:rgba(192,21,42,0.02);">
+  <div style="font-size:14px;font-weight:700;color:var(--crimson);margin-bottom:12px;">
+    <i class="bi bi-bell-fill"></i> Alertes de stock actives ({{ alertes.count }})
+  </div>
+  {% for a in alertes %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:white;border-radius:8px;margin-bottom:8px;border:1px solid rgba(192,21,42,0.15);">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="blood-badge blood-{{ a.groupe_sanguin|first|lower }}">{{ a.groupe_sanguin }}</span>
+      <div>
+        <div style="font-weight:600;font-size:13px;">
+          {% if a.niveau == 'critical' %}🚨{% else %}⚠️{% endif %}
+          {{ a.message }}
+        </div>
+        <div style="font-size:11px;color:var(--muted);">{{ a.date_alerte|date:"d/m/Y H:i" }}</div>
+      </div>
+    </div>
+    <form method="post" action="{% url 'resoudre_alerte' a.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-sm-ghost">✓ Résoudre</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- FILTRES PAR TYPE DE PRODUIT -->
+<div class="card mb-4">
+  <div style="display:flex; align-items:center; gap:15px;">
+    <div style="font-weight:700; font-size:13px; color:var(--slate);"><i class="bi bi-filter"></i> Filtrer par type :</div>
+    <div style="flex:1; max-width:300px;">
+      <select id="type_produit" class="form-select">
+        <option value="all">Tous les produits</option>
+        {% for code, label in types_produit %}
+          <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Grille des stocks (Groupes + Types) -->
+<div id="stockGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  {% for item in stock_detail %}
+  <div class="card stock-card {% if item.critique %}critique-border{% endif %}"
+       data-type="{{ item.type_code }}"
+       style="{% if item.critique %}border-color:rgba(192,21,42,0.4);background:rgba(192,21,42,0.02);{% endif %}">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div>
+        <span class="blood-badge blood-{{ item.groupe|first|lower }}" style="width:40px;height:40px;font-size:14px;">{{ item.groupe }}</span>
+        <div style="font-size:10px; font-weight:700; margin-top:5px; color:var(--muted); text-transform:uppercase;">
+          {{ item.type_produit }}
+        </div>
+      </div>
+      {% if item.critique %}
+      <div style="text-align:right;">
+        <span style="font-size:9px;background:var(--crimson);color:white;padding:2px 8px;border-radius:10px;font-weight:700;">⚠️ CRITIQUE</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div style="font-size:28px;font-weight:800;color:{% if item.critique %}var(--crimson){% elif item.disponibles < 10 %}var(--gold){% else %}var(--success){% endif %};">
+      {{ item.disponibles }}
+    </div>
+    <div style="font-size:12px;color:var(--muted);">poches disponibles</div>
+
+    <div style="margin:10px 0;">
+      <div class="stock-bar">
+        {% if item.disponibles == 0 %}
+        <div class="stock-bar-fill fill-crit" style="width:5%;"></div>
+        {% elif item.critique %}
+        <div class="stock-bar-fill fill-crit" style="width:{% widthratio item.disponibles 50 100 %}%;"></div>
+        {% elif item.disponibles < 15 %}
+        <div class="stock-bar-fill fill-warn" style="width:{% widthratio item.disponibles 50 100 %}%;"></div>
+        {% else %}
+        <div class="stock-bar-fill fill-ok" style="width:{% widthratio item.disponibles 50 100 %}%;"></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+      <div style="color:var(--muted);">En analyse: <strong>{{ item.en_analyse }}</strong></div>
+      <div style="color:var(--muted);">Attribuées: <strong>{{ item.attribuees }}</strong></div>
+    </div>
+
+    {% if item.expirant > 0 %}
+    <div style="margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); font-size:10px; color:var(--gold); font-weight:600;">
+      <i class="bi bi-clock-history"></i> {{ item.expirant }} expirant bientôt
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Tableau récapitulatif -->
+<div class="card">
+  <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Détails d'inventaire</div>
+  <table class="table-clean">
+    <thead>
+      <tr>
+        <th>Groupe</th>
+        <th>Type de produit</th>
+        <th>Disponibles</th>
+        <th>En analyse</th>
+        <th>Expirant (7j)</th>
+        <th>Statut</th>
+      </tr>
+    </thead>
+    <tbody id="stockTableBody">
+      {% for item in stock_detail %}
+      <tr class="stock-row" data-type="{{ item.type_code }}">
+        <td><span class="blood-badge blood-{{ item.groupe|first|lower }}">{{ item.groupe }}</span></td>
+        <td style="font-size:12px; font-weight:600;">{{ item.type_produit }}</td>
+        <td style="font-weight:700;color:{% if item.critique %}var(--crimson){% else %}var(--success){% endif %}">{{ item.disponibles }}</td>
+        <td style="color:var(--muted);">{{ item.en_analyse }}</td>
+        <td>{% if item.expirant > 0 %}<span style="color:var(--gold);font-weight:600;">⚠️ {{ item.expirant }}</span>{% else %}—{% endif %}</td>
+        <td>
+          {% if item.critique %}
+          <span class="badge-status status-critique">🚨 Stock Critique</span>
+          {% elif item.disponibles < 15 %}
+          <span class="badge-status status-en_attente">⚠️ Seuil bas</span>
+          {% else %}
+          <span class="badge-status status-disponible">✓ Satisfaisant</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const typeFilter = document.getElementById('type_produit');
+  const cards = document.querySelectorAll('.stock-card');
+  const rows = document.querySelectorAll('.stock-row');
+
+  typeFilter.addEventListener('change', function() {
+    const selectedType = this.value;
+
+    // Filtrer les cartes
+    cards.forEach(card => {
+      if (selectedType === 'all' || card.getAttribute('data-type') === selectedType) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    // Filtrer les lignes du tableau
+    rows.forEach(row => {
+      if (selectedType === 'all' || row.getAttribute('data-type') === selectedType) {
+        row.style.display = 'table-row';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

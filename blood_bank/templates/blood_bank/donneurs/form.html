@@ -1,0 +1,166 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}{{ title }} - CNTS{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ title }}</div>
+    {% if donneur %}<div class="page-subtitle">{{ donneur.code_unique }}</div>{% endif %}
+  </div>
+  <a href="{% url 'donneur_list' %}" class="btn-sm-ghost"><i class="bi bi-arrow-left"></i> Retour</a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <div>
+    <form method="post" id="donneurForm">
+      {% csrf_token %}
+
+      <div class="card mb-4">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+          <i class="bi bi-person-fill"></i> Informations personnelles
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div style="grid-column:1/-1;">
+            <label class="form-label">Nom complet *</label>
+            {{ form.nom_complet }}
+          </div>
+          <div>
+            <label class="form-label">Sexe *</label>
+            {{ form.sexe }}
+          </div>
+          <div>
+            <label class="form-label">Date de naissance *</label>
+            {{ form.date_naissance }}
+          </div>
+          <div>
+            <label class="form-label">Poids (kg) *</label>
+            {{ form.poids }}
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Min. 50 kg requis pour donner</div>
+          </div>
+          <div>
+            <label class="form-label">Téléphone *</label>
+            {{ form.telephone }}
+          </div>
+          <div>
+            <label class="form-label">Email</label>
+            {{ form.email }}
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="form-label">Adresse</label>
+            {{ form.adresse }}
+          </div>
+          <div>
+            <label class="form-label">Quartier / Zone</label>
+            {{ form.quartier }}
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+          <i class="bi bi-droplet-fill"></i> Informations médicales
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <label class="form-label">
+              Groupe sanguin
+              <span style="font-size:11px;color:var(--muted);font-weight:400;">
+                (optionnel — déterminé au labo)
+              </span>
+            </label>
+            {{ form.groupe_sanguin }}
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+              <i class="bi bi-info-circle"></i>
+              Laissez vide si inconnu. Le labo mettra à jour après analyses.
+            </div>
+          </div>
+          <div>
+            <label class="form-label">Type de donneur</label>
+            {{ form.type_donneur }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Champs cachés géolocalisation -->
+      {{ form.latitude }}
+      {{ form.longitude }}
+
+      <div style="display:flex;gap:10px;">
+        <button type="submit" class="btn-blood"><i class="bi bi-check-circle"></i> Enregistrer</button>
+        <a href="{% url 'donneur_list' %}" class="btn-sm-ghost">Annuler</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Panneau géolocalisation -->
+  <div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">
+        <i class="bi bi-geo-alt-fill" style="color:var(--crimson);"></i> Géolocalisation
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+        Cliquez sur la carte ou utilisez votre position pour localiser le donneur.
+      </p>
+      <div id="map" style="height:250px;border-radius:10px;overflow:hidden;"></div>
+      <button type="button" class="btn-outline-blood w-100 mt-3" id="geoBtn" onclick="locateMe()">
+        <i class="bi bi-crosshair"></i> Ma position
+      </button>
+      <div id="geoInfo" style="margin-top:8px;font-size:11px;color:var(--muted);text-align:center;"></div>
+    </div>
+
+    <div class="card mt-4">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📱 Notification SMS</div>
+      <p style="font-size:12px;color:var(--muted);">
+        Un SMS de bienvenue sera automatiquement envoyé au donneur via Africa's Talking après l'enregistrement.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([-4.2634, 15.2429], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let marker = null;
+
+{% if donneur and donneur.latitude %}
+  marker = L.marker([{{ donneur.latitude }}, {{ donneur.longitude }}]).addTo(map);
+  map.setView([{{ donneur.latitude }}, {{ donneur.longitude }}], 14);
+{% endif %}
+
+map.on('click', function(e) {
+  setLocation(e.latlng.lat, e.latlng.lng);
+});
+
+function setLocation(lat, lng) {
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat, lng]).addTo(map);
+  document.querySelector('[name="latitude"]').value = lat.toFixed(6);
+  document.querySelector('[name="longitude"]').value = lng.toFixed(6);
+  document.getElementById('geoInfo').textContent = `Position: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
+function locateMe() {
+  const btn = document.getElementById('geoBtn');
+  btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Localisation...';
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setLocation(pos.coords.latitude, pos.coords.longitude);
+        map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+        btn.innerHTML = '<i class="bi bi-check"></i> Localisé!';
+      },
+      err => {
+        btn.innerHTML = '<i class="bi bi-crosshair"></i> Ma position';
+        alert('Erreur de géolocalisation: ' + err.message);
+      }
+    );
+  }
+}
+</script>
+{% endblock %}

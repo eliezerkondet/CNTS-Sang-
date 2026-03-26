@@ -1,0 +1,52 @@
+{% extends 'blood_bank/base.html' %}
+{% block content %}
+<div class="container">
+  <h2>Examens médicaux en attente</h2>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h4>Nouveaux candidats à examiner</h4>
+        </div>
+        <div class="card-body">
+          {% for donneur in donneurs_sans_examen %}
+            <div class="candidat-item">
+              <strong>{{ donneur.nom_complet }}</strong><br>
+              Tél: {{ donneur.telephone }}<br>
+              <a href="{% url 'examen_medical_create' donneur.pk %}" class="btn btn-sm btn-primary">
+                Examiner
+              </a>
+            </div>
+            <hr>
+          {% empty %}
+            <p>Aucun candidat en attente</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h4>Donneurs inaptes temporaires</h4>
+        </div>
+        <div class="card-body">
+          {% for donneur in donneurs_inaptes %}
+            <div class="candidat-item">
+              <strong>{{ donneur.nom_complet }}</strong><br>
+              Motif: {{ donneur.examen_medical.motif_inaptitude }}<br>
+              <a href="{% url 'examen_medical_create' donneur.pk %}" class="btn btn-sm btn-warning">
+                Réexaminer
+              </a>
+            </div>
+            <hr>
+          {% empty %}
+            <p>Aucun donneur inapte temporaire</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

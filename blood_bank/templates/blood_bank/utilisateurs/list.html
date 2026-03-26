@@ -1,0 +1,74 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Utilisateurs - CNTS{% endblock %}
+{% block page_title %}Gestion des utilisateurs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Utilisateurs du système</div>
+    <div class="page-subtitle">{{ utilisateurs.count }} utilisateur{{ utilisateurs.count|pluralize }} enregistré{{ utilisateurs.count|pluralize }}</div>
+  </div>
+  <a href="{% url 'utilisateur_create' %}" class="btn-blood"><i class="bi bi-person-plus-fill"></i> Nouvel utilisateur</a>
+</div>
+
+<div class="card">
+  <table class="table-clean">
+    <thead>
+      <tr>
+        <th>Utilisateur</th>
+        <th>Rôle</th>
+        <th>Centre</th>
+        <th>Téléphone</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in utilisateurs %}
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:36px;height:36px;background:
+              {% if u.role == 'admin' %}rgba(192,21,42,0.15){% elif u.role == 'medecin' %}rgba(26,92,139,0.15){% elif u.role == 'technicien' %}rgba(26,122,74,0.15){% else %}rgba(201,168,76,0.15){% endif %};
+              border-radius:50%;display:flex;align-items:center;justify-content:center;
+              font-weight:700;font-size:14px;color:
+              {% if u.role == 'admin' %}var(--crimson){% elif u.role == 'medecin' %}var(--info){% elif u.role == 'technicien' %}var(--success){% else %}var(--gold){% endif %};">
+              {{ u.username|first|upper }}
+            </div>
+            <div>
+              <div style="font-weight:600;">{{ u.get_full_name|default:u.username }}</div>
+              <div style="font-size:11px;color:var(--muted);">@{{ u.username }}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <span style="font-size:12px;padding:3px 10px;border-radius:10px;font-weight:600;
+            {% if u.role == 'admin' %}background:rgba(192,21,42,0.1);color:var(--crimson);
+            {% elif u.role == 'medecin' %}background:rgba(26,92,139,0.1);color:var(--info);
+            {% elif u.role == 'technicien' %}background:rgba(26,122,74,0.1);color:var(--success);
+            {% else %}background:rgba(201,168,76,0.1);color:var(--gold);{% endif %}">
+            {{ u.get_role_display }}
+          </span>
+        </td>
+        <td style="font-size:12px;color:var(--muted);">{{ u.centre_ref|truncatechars:30 }}</td>
+        <td style="font-size:12px;">{{ u.telephone|default:"—" }}</td>
+        <td>
+          {% if u.is_active %}
+          <span class="badge-status status-disponible">Actif</span>
+          {% else %}
+          <span class="badge-status status-rejetee">Inactif</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{% url 'utilisateur_edit' u.pk %}" class="btn-sm-ghost"><i class="bi bi-pencil"></i></a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" style="text-align:center;padding:40px;color:var(--muted);">Aucun utilisateur</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

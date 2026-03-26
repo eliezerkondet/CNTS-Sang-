@@ -1,0 +1,218 @@
+{% extends 'blood_bank/base.html' %}
+{% load static %}
+
+{% block title %}Carte géographique des donneurs - CNTS{% endblock %}
+
+{% block page_title %}Carte géographique des donneurs{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    #map {
+        height: 500px;
+        width: 100%;
+        border-radius: 12px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        background-color: #f0f0f0;
+    }
+    .info-panel {
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    .stat-card-map {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+    }
+    .legend {
+        background: white;
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        border: 1px solid #ddd;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+    .alert-warning {
+        background-color: #fff3cd;
+        border-color: #ffeeba;
+        color: #856404;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="info-panel">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h4><i class="bi bi-geo-alt-fill text-danger"></i> Localisation des donneurs</h4>
+                        <p class="text-muted mb-0">
+                            <i class="bi bi-info-circle"></i>
+                            Carte interactive des donneurs enregistrés au CNTS Brazzaville
+                        </p>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card-map">
+                            <h3>{{ total_donneurs|default:0 }}</h3>
+                            <small>Donneurs localisés</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="legend">
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #e74c3c;"></div>
+                                <span>Groupe O</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #3498db;"></div>
+                                <span>Groupe A</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #2ecc71;"></div>
+                                <span>Groupe B</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #f39c12;"></div>
+                                <span>Groupe AB</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #e74c3c; border: 2px solid #fff; box-shadow: 0 0 0 2px #e74c3c;"></div>
+                                <span>Centre CNTS</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    {% if total_donneurs == 0 %}
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Aucun donneur avec coordonnées géographiques.
+                <a href="{% url 'donneur_list' %}" class="alert-link">Ajoutez des coordonnées</a> aux donneurs pour les voir sur la carte.
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Attendre que la page soit complètement chargée
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Initialisation de la carte...');
+
+        // Données des donneurs
+        var donneursData = {{ donneurs_json|safe }};
+        console.log('Nombre de donneurs:', donneursData.length);
+
+        // Coordonnées du centre
+        var centreLat = {{ centre_lat|default:-4.2634 }};
+        var centreLon = {{ centre_lon|default:15.2429 }};
+
+        // Initialisation de la carte
+        var map = L.map('map').setView([centreLat, centreLon], 13);
+
+        // Ajouter le fond de carte
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Ajouter un marqueur pour le centre CNTS
+        var centreIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div style="background-color: #e74c3c; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><i class="bi bi-hospital" style="color: white; font-size: 18px;"></i></div>',
+            iconSize: [32, 32],
+            popupAnchor: [0, -16]
+        });
+
+        L.marker([centreLat, centreLon], {icon: centreIcon})
+            .addTo(map)
+            .bindPopup('<b>{{ centre_nom }}</b><br>Centre National de Transfusion Sanguine<br>Brazzaville, Congo');
+
+        // Fonction pour obtenir la couleur selon le groupe sanguin
+        function getMarkerColor(groupe) {
+            if (!groupe || groupe === '?') return '#95a5a6';
+            if (groupe.startsWith('O')) return '#e74c3c';
+            if (groupe.startsWith('A')) return '#3498db';
+            if (groupe.startsWith('B')) return '#2ecc71';
+            if (groupe.startsWith('AB')) return '#f39c12';
+            return '#95a5a6';
+        }
+
+        // Ajouter les marqueurs des donneurs
+        var markers = [];
+        donneursData.forEach(function(donneur) {
+            if (donneur.lat && donneur.lon) {
+                var color = getMarkerColor(donneur.groupe);
+                var icon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div style="background-color: ${color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); font-weight: bold; color: white; font-size: 11px;">${donneur.groupe || '?'}</div>`,
+                    iconSize: [28, 28],
+                    popupAnchor: [0, -14]
+                });
+
+                var popupContent = `
+                    <div style="min-width: 200px;">
+                        <strong>${donneur.nom}</strong><br>
+                        <i class="bi bi-droplet"></i> <strong>Groupe:</strong> ${donneur.groupe || 'Non déterminé'}<br>
+                        <i class="bi bi-geo-alt"></i> <strong>Quartier:</strong> ${donneur.quartier || 'Non renseigné'}<br>
+                        <i class="bi bi-check-circle"></i> <strong>Peut donner:</strong> ${donneur.peut_donner ? '✅ Oui' : '❌ Non'}<br>
+                        ${donneur.est_risque ? '<span class="badge badge-danger">⚠️ Donneur à risque</span><br>' : ''}
+                        <hr class="my-2">
+                        <a href="/donneurs/${donneur.id}/" class="btn btn-sm btn-primary" style="width: 100%;">Voir détails</a>
+                    </div>
+                `;
+
+                var marker = L.marker([donneur.lat, donneur.lon], {icon: icon})
+                    .addTo(map)
+                    .bindPopup(popupContent);
+
+                markers.push(marker);
+            }
+        });
+
+        console.log('Marqueurs ajoutés:', markers.length);
+
+        // Ajuster la vue pour voir tous les marqueurs s'il y en a
+        if (markers.length > 0) {
+            var group = L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.1));
+        } else {
+            // Si pas de marqueurs, centrer sur Brazzaville
+            map.setView([centreLat, centreLon], 12);
+        }
+
+        // Ajouter une échelle
+        L.control.scale().addTo(map);
+    });
+</script>
+{% endblock %}

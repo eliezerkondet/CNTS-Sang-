@@ -1,0 +1,120 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}{{ title }} - CNTS{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ title }}</div>
+  </div>
+  <a href="{% url 'utilisateur_list' %}" class="btn-sm-ghost"><i class="bi bi-arrow-left"></i> Retour</a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <form method="post">
+    {% csrf_token %}
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        <i class="bi bi-person-fill"></i> Identité
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label class="form-label">Nom d'utilisateur *</label>
+          {{ form.username }}
+        </div>
+        <div>
+          <label class="form-label">Rôle *</label>
+          {{ form.role }}
+        </div>
+        <div>
+          <label class="form-label">Prénom</label>
+          {{ form.first_name }}
+        </div>
+        <div>
+          <label class="form-label">Nom</label>
+          {{ form.last_name }}
+        </div>
+        <div>
+          <label class="form-label">Email</label>
+          {{ form.email }}
+        </div>
+        <div>
+          <label class="form-label">Téléphone</label>
+          {{ form.telephone }}
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Centre de référence</label>
+          {{ form.centre_ref }}
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        <i class="bi bi-shield-lock"></i> Mot de passe
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label class="form-label">Nouveau mot de passe</label>
+          {{ form.password1 }}
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">Laisser vide pour ne pas changer</div>
+        </div>
+        <div>
+          <label class="form-label">Confirmer</label>
+          {{ form.password2 }}
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;align-items:center;gap:10px;">
+        {{ form.is_active }}
+        <label class="form-label" style="margin:0;cursor:pointer;">Compte actif</label>
+      </div>
+    </div>
+
+    {% if form.errors %}
+    <div class="alert-cnts danger mb-4">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      {% for field, errors in form.errors.items %}
+        {{ errors|join:", " }}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="display:flex;gap:10px;">
+      <button type="submit" class="btn-blood"><i class="bi bi-check-circle"></i> Enregistrer</button>
+      <a href="{% url 'utilisateur_list' %}" class="btn-sm-ghost">Annuler</a>
+    </div>
+  </form>
+
+  <div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px;">🎭 Rôles et accès</div>
+      <div style="font-size:12px;display:flex;flex-direction:column;gap:8px;">
+        <div style="padding:8px;background:rgba(192,21,42,0.05);border-radius:6px;">
+          <div style="font-weight:600;color:var(--crimson);">Administrateur</div>
+          <div style="color:var(--muted);">Accès complet au système</div>
+        </div>
+        <div style="padding:8px;background:rgba(26,92,139,0.05);border-radius:6px;">
+          <div style="font-weight:600;color:var(--info);">Médecin du centre</div>
+          <div style="color:var(--muted);">Évaluation aptitude donneurs</div>
+        </div>
+        <div style="padding:8px;background:rgba(26,122,74,0.05);border-radius:6px;">
+          <div style="font-weight:600;color:var(--success);">Infirmier</div>
+          <div style="color:var(--muted);">Prélèvements sanguins</div>
+        </div>
+        <div style="padding:8px;background:rgba(26,122,74,0.05);border-radius:6px;">
+          <div style="font-weight:600;color:var(--success);">Technicien de labo</div>
+          <div style="color:var(--muted);">Analyses biologiques</div>
+        </div>
+        <div style="padding:8px;background:rgba(201,168,76,0.05);border-radius:6px;">
+          <div style="font-weight:600;color:var(--gold);">Gestionnaire stock</div>
+          <div style="color:var(--muted);">Inventaire et alertes</div>
+        </div>
+        <div style="padding:8px;background:rgba(201,168,76,0.05);border-radius:6px;">
+          <div style="font-weight:600;color:var(--gold);">Resp. délivrance</div>
+          <div style="color:var(--muted);">Distribution aux hôpitaux</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends 'blood_bank/base.html' %}
+{% block content %}
+<div class="container">
+  <h2>Analyse laboratoire - {{ poche.code_barre }}</h2>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="card">
+      <div class="card-header">
+        <h4>Tests médicaux</h4>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_vih" name="test_vih">
+              <label class="form-check-label" for="test_vih">Test VIH - Négatif</label>
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_hepatite_b" name="test_hepatite_b">
+              <label class="form-check-label" for="test_hepatite_b">Test Hépatite B - Négatif</label>
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_hepatite_c" name="test_hepatite_c">
+              <label class="form-check-label" for="test_hepatite_c">Test Hépatite C - Négatif</label>
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_syphilis" name="test_syphilis">
+              <label class="form-check-label" for="test_syphilis">Test Syphilis - Négatif</label>
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_paludisme" name="test_paludisme">
+              <label class="form-check-label" for="test_paludisme">Test Paludisme - Négatif</label>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_chagas" name="test_chagas">
+              <label class="form-check-label" for="test_chagas">Test Maladie de Chagas - Négatif</label>
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_htlv" name="test_htlv">
+              <label class="form-check-label" for="test_htlv">Test HTLV - Négatif</label>
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_cytomegalovirus" name="test_cytomegalovirus">
+              <label class="form-check-label" for="test_cytomegalovirus">Test Cytomégalovirus - Négatif</label>
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_ebv" name="test_ebv">
+              <label class="form-check-label" for="test_ebv">Test EBV - Négatif</label>
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="test_parvovirus" name="test_parvovirus">
+              <label class="form-check-label" for="test_parvovirus">Test Parvovirus B19 - Négatif</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-info mt-3">
+      <strong>⚠️ Important:</strong> Si un test est positif, la poche sera rejetée et le donneur sera marqué comme "à risque".
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-3">Valider l'analyse</button>
+  </form>
+</div>
+{% endblock %}

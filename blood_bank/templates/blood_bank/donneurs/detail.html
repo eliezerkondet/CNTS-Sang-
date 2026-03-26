@@ -1,0 +1,215 @@
+{% extends 'blood_bank/base.html' %}
+{% load static %}
+
+{% block title %}{{ donneur.nom_complet }} - CNTS{% endblock %}
+{% block page_title %}Fiche détaillée du donneur{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ donneur.nom_complet }}</div>
+    <div class="page-subtitle mono">{{ donneur.code_unique }} · {{ donneur.get_type_donneur_display }}</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{% url 'donneur_edit' donneur.pk %}" class="btn-outline-blood"><i class="bi bi-pencil"></i> Modifier</a>
+    {% if user.role == 'medecin' or user.role == 'admin' %}
+        <a href="{% url 'examen_medical_create' donneur.pk %}" class="btn-sm-ghost"><i class="bi bi-heart-pulse"></i> Examen</a>
+    {% endif %}
+    <a href="{% url 'donneur_list' %}" class="btn-sm-ghost"><i class="bi bi-arrow-left"></i> Retour</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 2fr;gap:20px;">
+
+  <!-- COLONNE GAUCHE : PROFIL & SCORES -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Profil Principal -->
+    <div class="card" style="text-align:center;">
+      <div style="width:70px;height:70px;background:rgba(192,21,42,0.1);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:var(--crimson);margin:0 auto 12px;">
+        {{ donneur.nom_complet|first }}
+      </div>
+      <div style="font-size:18px;font-weight:700;">{{ donneur.nom_complet }}</div>
+
+      <div style="margin:12px 0;">
+        {% if donneur.groupe_sanguin %}
+            <span class="blood-badge blood-{{ donneur.groupe_sanguin|first|lower }}" style="width:54px;height:54px;font-size:18px;">{{ donneur.groupe_sanguin }}</span>
+        {% else %}
+            <span class="badge-status status-en_attente">Groupe inconnu</span>
+        {% endif %}
+      </div>
+
+      <div style="margin-top:10px;padding-top:15px;border-top:1px solid var(--border);">
+        {% if donneur.peut_donner %}
+            <div class="alert-cnts success" style="justify-content:center;"><i class="bi bi-check-circle-fill"></i> Éligible au don</div>
+        {% else %}
+            <div class="alert-cnts danger" style="justify-content:center;"><i class="bi bi-x-circle-fill"></i> Non éligible actuellement</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Informations Vitales -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">Données Personnelles</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Sexe / Âge</span>
+          <span style="font-weight:600;">{{ donneur.get_sexe_display }} · {{ donneur.age }} ans</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Poids</span>
+          <span style="font-weight:600;">{{ donneur.poids }} kg</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Téléphone</span>
+          <span style="font-weight:600;" class="mono">{{ donneur.telephone }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Quartier</span>
+          <span style="font-weight:600;">{{ donneur.quartier|default:"-" }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Inscrit le</span>
+          <span style="font-weight:600;">{{ donneur.date_inscription|date:"d/m/Y" }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Crédit Solidaire -->
+    <div class="card" style="background:linear-gradient(135deg, var(--charcoal), #333); color:white; border:none;">
+      <div style="text-align:center; padding:5px 0;">
+        <div style="font-size:32px;font-weight:800;color:var(--gold);">⭐ {{ donneur.credit_solidaire }}</div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.6);">Points Solidaires</div>
+        <div style="margin-top:10px; font-size:12px; opacity:0.8;">Total de {{ donneur.nombre_dons }} don{{ donneur.nombre_dons|pluralize }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLONNE DROITE : STATUT MÉDICAL & HISTORIQUE -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <!-- Classification & Risque -->
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Classification</div>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+            <span class="badge-status {% if donneur.classification == 'donneur' %}status-validee{% elif donneur.classification == 'candidat' %}status-livree{% else %}status-critique{% endif %}">
+                {{ donneur.get_classification_display }}
+            </span>
+        </div>
+
+        {% if donneur.est_donneur_risque %}
+            <div class="alert-cnts danger" style="padding:10px;">
+                <div style="font-size:11px;">
+                    <strong style="display:block;margin-bottom:2px;">⚠️ PROFIL À RISQUE</strong>
+                    {{ donneur.motif_risque|default:"Antécédents ou tests positifs détectés." }}
+                </div>
+            </div>
+        {% else %}
+            <div class="alert-cnts success" style="font-size:11px;">
+                <i class="bi bi-shield-check"></i> Profil sécurisé pour la transfusion.
+            </div>
+        {% endif %}
+      </div>
+
+      <!-- Dernier Examen Médical -->
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Examen médical</div>
+        {% if examen %}
+            <div style="font-size:13px; line-height:1.4;">
+                <div style="margin-bottom:5px;">Date : <span class="mono">{{ examen.date_examen|date:"d/m/Y" }}</span></div>
+                <div style="margin-bottom:5px;">Résultat :
+                    <span class="badge-status {% if examen.resultat == 'apte' %}status-validee{% else %}status-critique{% endif %}">
+                        {{ examen.get_resultat_display }}
+                    </span>
+                </div>
+                <div style="font-size:11px; color:var(--muted);">Médecin : {{ examen.medecin_examinateur.get_full_name|default:examen.medecin_examinateur.username }}</div>
+            </div>
+        {% else %}
+            <div style="text-align:center; padding:10px 0;">
+                <p style="font-size:12px; color:var(--muted);">Aucun examen enregistré.</p>
+                {% if user.role == 'medecin' or user.role == 'admin' %}
+                    <a href="{% url 'examen_medical_create' donneur.pk %}" class="btn-blood" style="font-size:11px; padding:5px 10px;">Effectuer maintenant</a>
+                {% endif %}
+            </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Carte Donneur (Si émise) -->
+    {% if carte %}
+    <div class="card" style="border: 1.5px dashed var(--gold); background: rgba(201, 168, 76, 0.03);">
+        <div style="display:flex; align-items:center; gap:20px;">
+            <div style="background:white; padding:8px; border-radius:10px; border:1px solid var(--border);">
+                {% if carte.qr_code %}
+                    <img src="{{ carte.qr_code.url }}" alt="QR" style="width: 80px; height:80px;">
+                {% elif carte.qr_code_data %}
+                    <img src="data:image/png;base64,{{ carte.qr_code_data }}" alt="QR" style="width: 80px; height:80px;">
+                {% endif %}
+            </div>
+            <div style="flex:1;">
+                <div style="font-size:14px; font-weight:700; color:var(--gold); margin-bottom:5px;">CARTE DONNEUR ACTIVE</div>
+                <div style="font-size:12px; display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div>N° <span class="mono">{{ carte.numero_carte }}</span></div>
+                    <div>Expire : <span class="mono">{{ carte.date_expiration_carte|date:"m/Y" }}</span></div>
+                </div>
+                <a href="{% url 'carte_donneur_view' donneur.pk %}" class="btn-sm-ghost mt-2" style="border-color:var(--gold); color:var(--gold);">
+                    <i class="bi bi-printer"></i> Imprimer la carte
+                </a>
+            </div>
+        </div>
+    </div>
+    {% elif is_directeur and donneur.classification == 'donneur' %}
+        <div class="card" style="border: 1.5px dashed var(--border); text-align:center;">
+             <p style="font-size:13px; color:var(--muted); margin-bottom:10px;">Ce donneur est éligible à une carte officielle.</p>
+             <a href="{% url 'carte_donneur_view' donneur.pk %}" class="btn-blood" style="background:var(--gold);">
+                <i class="bi bi-id-card"></i> Générer la carte donneur
+             </a>
+        </div>
+    {% endif %}
+
+    <!-- Historique des prélèvements -->
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Historique des dons</div>
+      <div class="table-responsive">
+        <table class="table-clean">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Produit</th>
+              <th>Date</th>
+              <th>Statut</th>
+              <th style="text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for poche in poches %}
+            <tr>
+              <td><span class="mono" style="font-size:11px; background:var(--warm-white); padding:2px 5px; border-radius:4px;">{{ poche.code_barre }}</span></td>
+              <td style="font-size:12px;">{{ poche.get_type_produit_display }}</td>
+              <td style="font-size:12px;">{{ poche.date_prelevement|date:"d/m/Y" }}</td>
+              <td>
+                <span class="badge-status {% if poche.statut == 'disponible' %}status-disponible{% elif poche.statut == 'rejetee' %}status-critique{% elif poche.statut == 'attribuee' %}status-en_attente{% else %}status-livree{% endif %}">
+                    {{ poche.get_statut_display }}
+                </span>
+              </td>
+              <td style="text-align:right;">
+                <a href="{% url 'poche_detail' poche.pk %}" class="btn-sm-ghost"><i class="bi bi-eye"></i></a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" style="text-align:center; padding:30px; color:var(--muted); font-size:13px;">
+                <i class="bi bi-droplet" style="font-size:24px; display:block; margin-bottom:10px;"></i>
+                Aucun don enregistré pour ce profil.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

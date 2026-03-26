@@ -1,0 +1,253 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Demande #{{ demande.pk }} - CNTS{% endblock %}
+{% block page_title %}Demande #{{ demande.pk }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Demande #{{ demande.pk }}</div>
+    <div class="page-subtitle">{{ demande.hopital }} · {{ demande.date_demande|date:"d/m/Y H:i" }}</div>
+  </div>
+  <a href="{% url 'demande_list' %}" class="btn-sm-ghost"><i class="bi bi-arrow-left"></i> Retour</a>
+</div>
+
+<!-- Bandeau statut -->
+<div class="card mb-4" style="
+  {% if demande.urgence == 'critique' %}border-color:rgba(192,21,42,0.5);background:rgba(192,21,42,0.03);{% elif demande.urgence == 'urgent' %}border-color:rgba(201,168,76,0.4);background:rgba(201,168,76,0.03);{% endif %}
+">
+  <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+    <span class="blood-badge blood-{{ demande.groupe_requis|first|lower }}" style="width:64px;height:64px;font-size:20px;">
+      {{ demande.groupe_requis }}
+    </span>
+    <div style="flex:1;">
+      <div style="font-size:18px;font-weight:700;">{{ demande.hopital }}</div>
+      <div style="font-size:13px;color:var(--muted);">Dr. {{ demande.medecin }} · {{ demande.quantite }} poche{{ demande.quantite|pluralize }} demandée{{ demande.quantite|pluralize }}</div>
+    </div>
+    <div style="text-align:right;">
+      <span class="badge-status
+        {% if demande.statut_demande == 'livree' %}status-livree
+        {% elif demande.statut_demande == 'en_attente' %}status-en_attente
+        {% elif demande.statut_demande in 'preparee,validee' %}status-validee
+        {% elif demande.statut_demande == 'refusee' %}status-rejetee
+        {% else %}status-en_attente{% endif %}"
+        style="font-size:13px;padding:6px 14px;">
+        {{ demande.get_statut_demande_display }}
+      </span>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;">
+        <span class="urgence-{{ demande.urgence }}">{{ demande.get_urgence_display }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <div>
+    <!-- Checklist include -->
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">
+        🔗 Vérifications automatiques (relations UML «include»)
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:center;gap:12px;padding:10px;background:var(--warm-white);border-radius:8px;">
+          {% if demande.compatibilite_verifiee %}
+          <div style="width:28px;height:28px;background:var(--success);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">✓</div>
+          {% else %}
+          <div style="width:28px;height:28px;background:var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted);">○</div>
+          {% endif %}
+          <div>
+            <div style="font-weight:600;font-size:13px;">Vérification de compatibilité sanguine</div>
+            <div style="font-size:11px;color:var(--muted);">Groupe requis: {{ demande.groupe_requis }}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px;background:var(--warm-white);border-radius:8px;">
+          {% if demande.disponibilite_verifiee %}
+          <div style="width:28px;height:28px;background:var(--success);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">✓</div>
+          {% else %}
+          <div style="width:28px;height:28px;background:var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted);">○</div>
+          {% endif %}
+          <div>
+            <div style="font-weight:600;font-size:13px;">Vérification de disponibilité du stock</div>
+            <div style="font-size:11px;color:var(--muted);">Quantité demandée: {{ demande.quantite }}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px;background:var(--warm-white);border-radius:8px;">
+          {% if demande.tracabilite_verifiee %}
+          <div style="width:28px;height:28px;background:var(--success);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">✓</div>
+          {% else %}
+          <div style="width:28px;height:28px;background:var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted);">○</div>
+          {% endif %}
+          <div>
+            <div style="font-weight:600;font-size:13px;">Vérification de traçabilité</div>
+            <div style="font-size:11px;color:var(--muted);">Requise avant délivrance (UML «include»)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Poches attribuées -->
+    {% if demande.poches_attribuees.all %}
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">📦 Poches attribuées</div>
+      <table class="table-clean">
+        <thead><tr><th>Code barre</th><th>Groupe</th><th>Expiration</th><th>Tests</th></tr></thead>
+        <tbody>
+          {% for p in demande.poches_attribuees.all %}
+          <tr>
+            <td><span class="mono" style="font-size:11px;">{{ p.code_barre }}</span></td>
+            <td><span class="blood-badge blood-{{ p.groupe_sanguin|first|lower }}" style="width:32px;height:32px;font-size:11px;">{{ p.groupe_sanguin }}</span></td>
+            <td style="font-size:12px;">{{ p.date_expiration|date:"d/m/Y" }}</td>
+            <td><span style="color:var(--success);font-size:12px;">✓ OK</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <!-- Actions de traitement -->
+    {% if demande.statut_demande in 'en_attente,en_cours' %}
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">⚙️ Traiter la demande</div>
+
+      {% if poches_compatibles %}
+      <form method="post" action="{% url 'demande_traiter' demande.pk %}">
+        {% csrf_token %}
+
+        <!-- ── VÉRIFICATION OBLIGATOIRE GROUPE PATIENT ── -->
+        <div style="background:rgba(192,21,42,0.04);border:1px solid rgba(192,21,42,0.25);
+             border-radius:10px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:700;color:var(--crimson);margin-bottom:10px;">
+            <i class="bi bi-shield-check"></i> Vérification obligatoire du groupe patient
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+            Avant toute délivrance, le groupe sanguin du patient doit être
+            <strong>confirmé par le laboratoire</strong> et doit correspondre
+            exactement au groupe requis <strong>{{ demande.groupe_requis }}</strong>.
+          </p>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <label class="form-label" style="margin:0;white-space:nowrap;">
+              Groupe confirmé du patient :
+            </label>
+            <select name="groupe_patient_verifie" class="form-select" style="max-width:120px;" required>
+              <option value="">-- Choisir --</option>
+              {% for val, label in groupe_choices %}
+              <option value="{{ val }}" {% if val == demande.groupe_requis %}style="color:var(--success);font-weight:700;"{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+            <div style="font-size:11px;color:var(--muted);">
+              ⚠ Doit être identique à <strong>{{ demande.groupe_requis }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="form-label">
+            Sélectionner les poches à attribuer
+            <span style="font-size:11px;color:var(--muted);">
+              ({{ demande.get_type_produit_display }} — {{ demande.groupe_requis }})
+            </span>
+          </label>
+          {% for p in poches_compatibles %}
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;
+               border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
+            <input type="checkbox" name="poches" value="{{ p.pk }}"
+                   class="form-check-input" style="margin:0;">
+            <span class="blood-badge blood-{{ p.groupe_sanguin|first|lower }}"
+                  style="width:32px;height:32px;font-size:11px;">
+              {{ p.groupe_sanguin }}
+            </span>
+            <div>
+              <div class="mono" style="font-size:11px;">{{ p.code_barre }}</div>
+              <div style="font-size:11px;color:var(--muted);">
+                {{ p.get_type_produit_display }} ·
+                Expire: {{ p.date_expiration|date:"d/m/Y" }}
+                <span style="color:{% if p.jours_restants <= 7 %}var(--crimson){% else %}var(--success){% endif %};">
+                  (J-{{ p.jours_restants }})
+                </span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button type="submit" name="action" value="valider" class="btn-blood">
+            <i class="bi bi-check-circle"></i> Valider et préparer
+          </button>
+          <button type="submit" name="action" value="refuser" class="btn-sm-ghost"
+            style="color:var(--crimson);border-color:var(--crimson);"
+            onclick="return confirm('Confirmer le refus de cette demande ?')">
+            <i class="bi bi-x-circle"></i> Refuser
+          </button>
+        </div>
+      </form>
+      {% else %}
+      <div class="alert-cnts danger">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        Aucune poche {{ demande.groupe_requis }} ({{ demande.get_type_produit_display }}) disponible en stock.
+        <a href="{% url 'stock_view' %}" style="color:var(--crimson);font-weight:600;">Voir le stock</a>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if demande.statut_demande == 'preparee' %}
+    <div class="card">
+      <form method="post" action="{% url 'demande_traiter' demande.pk %}">
+        {% csrf_token %}
+        <button type="submit" name="action" value="livrer" class="btn-blood">
+          <i class="bi bi-truck"></i> Marquer comme livrée
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px;">📋 Détails</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Patient</span>
+          <span style="font-weight:600;">{{ demande.patient_nom|default:"—" }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Contact</span>
+          <span style="font-weight:600;">{{ demande.telephone_contact|default:"—" }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Prix final</span>
+          <span style="font-weight:700;color:var(--crimson);">{{ demande.prix_final }} FCFA</span>
+        </div>
+        {% if demande.donneur_parrain %}
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Parrain</span>
+          <span style="font-weight:600;">{{ demande.donneur_parrain.nom_complet }}</span>
+        </div>
+        {% endif %}
+        {% if demande.date_traitement %}
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Traité le</span>
+          <span>{{ demande.date_traitement|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% endif %}
+        {% if demande.date_livraison %}
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Livré le</span>
+          <span>{{ demande.date_livraison|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if demande.notes %}
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Notes</div>
+      <p style="font-size:12px;color:var(--muted);">{{ demande.notes }}</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

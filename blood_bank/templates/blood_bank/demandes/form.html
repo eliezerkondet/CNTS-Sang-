@@ -1,0 +1,189 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Nouvelle demande - CNTS{% endblock %}
+{% block page_title %}Nouvelle demande{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ title }}</div>
+    <div class="page-subtitle">Demande de produits sanguins</div>
+  </div>
+  <a href="{% url 'demande_list' %}" class="btn-sm-ghost"><i class="bi bi-arrow-left"></i> Retour</a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        <i class="bi bi-hospital"></i> Informations de l'établissement
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label class="form-label">Hôpital / Établissement *</label>
+          {{ form.hopital }}
+        </div>
+        <div>
+          <label class="form-label">Médecin prescripteur *</label>
+          {{ form.medecin }}
+        </div>
+        <div>
+          <label class="form-label">Patient</label>
+          {{ form.patient_nom }}
+        </div>
+        <div>
+          <label class="form-label">Téléphone de contact</label>
+          {{ form.telephone_contact }}
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        <i class="bi bi-droplet-fill"></i> Caractéristiques du sang requis
+      </div>
+
+      <!-- Stock disponible par type de produit -->
+      {% if stock_par_type %}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">
+        {% for type_code, info in stock_par_type.items %}
+        <div style="background:var(--warm-white);border-radius:10px;padding:10px;text-align:center;
+             border:2px solid {% if info.total == 0 %}rgba(192,21,42,0.4){% elif info.total < 5 %}rgba(201,168,76,0.4){% else %}rgba(26,122,74,0.3){% endif %};">
+          <div style="font-size:20px;margin-bottom:4px;">
+            {% if type_code == 'sang_total' %}🩸
+            {% elif type_code == 'culot_erythrocytaire' %}🔴
+            {% elif type_code == 'culot_plaquettaire' %}🟡
+            {% else %}🟠{% endif %}
+          </div>
+          <div style="font-size:18px;font-weight:800;
+               color:{% if info.total == 0 %}var(--crimson){% elif info.total < 5 %}var(--gold){% else %}var(--success){% endif %};">
+            {{ info.total }}
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">{{ info.label }}</div>
+          {% if info.total == 0 %}
+          <div style="font-size:9px;color:var(--crimson);font-weight:700;">RUPTURE</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label class="form-label">Type de produit requis *</label>
+          {{ form.type_produit }}
+        </div>
+        <div>
+          <label class="form-label">Groupe sanguin requis *</label>
+          {{ form.groupe_requis }}
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+            <i class="bi bi-info-circle"></i> La compatibilité sera vérifiée automatiquement
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Quantité (poches) *</label>
+          {{ form.quantite }}
+        </div>
+        <div>
+          <label class="form-label">Niveau d'urgence *</label>
+          {{ form.urgence }}
+        </div>
+      </div>
+
+      <!-- Règle stricte compatibilité groupes sanguins -->
+      <div style="margin-top:14px;padding:12px;background:rgba(26,92,139,0.05);
+           border-radius:8px;border-left:3px solid var(--info);">
+        <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px;">
+          <i class="bi bi-shield-check"></i> Règle de compatibilité CNTS — Groupe identique UNIQUEMENT
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;">
+          <div style="background:rgba(192,21,42,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
+            <strong style="color:var(--crimson);">A+</strong> → reçoit de <strong>A+</strong> uniquement
+          </div>
+          <div style="background:rgba(192,21,42,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
+            <strong style="color:var(--crimson);">A-</strong> → reçoit de <strong>A-</strong> uniquement
+          </div>
+          <div style="background:rgba(26,92,139,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
+            <strong style="color:var(--info);">B+</strong> → reçoit de <strong>B+</strong> uniquement
+          </div>
+          <div style="background:rgba(26,92,139,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
+            <strong style="color:var(--info);">B-</strong> → reçoit de <strong>B-</strong> uniquement
+          </div>
+          <div style="background:rgba(201,168,76,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
+            <strong style="color:var(--gold);">AB+</strong> → reçoit de <strong>AB+</strong> uniquement
+          </div>
+          <div style="background:rgba(201,168,76,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
+            <strong style="color:var(--gold);">AB-</strong> → reçoit de <strong>AB-</strong> uniquement
+          </div>
+          <div style="background:rgba(26,122,74,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
+            <strong style="color:var(--success);">O+</strong> → reçoit de <strong>O+</strong> uniquement
+          </div>
+          <div style="background:rgba(26,122,74,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
+            <strong style="color:var(--success);">O-</strong> → reçoit de <strong>O-</strong> uniquement
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--muted);">
+          <i class="bi bi-info-circle"></i>
+          Le groupe du patient sera <strong>vérifié obligatoirement par le laboratoire</strong> avant toute délivrance.
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        <i class="bi bi-people"></i> Don familial (optionnel)
+      </div>
+      <div>
+        <label class="form-label">Donneur parrain</label>
+        {{ form.donneur_parrain }}
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">
+          Si un donneur parrain est désigné avec suffisamment de crédits solidaires, un tarif réduit s'applique.
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <label class="form-label">Notes complémentaires</label>
+        {{ form.notes }}
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button type="submit" class="btn-blood">
+        <i class="bi bi-check-circle"></i> Soumettre la demande
+      </button>
+      <a href="{% url 'demande_list' %}" class="btn-sm-ghost">Annuler</a>
+    </div>
+  </form>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">📱 Confirmation SMS</div>
+      <p style="font-size:12px;color:var(--muted);">
+        Un SMS de confirmation sera envoyé au numéro de contact fourni via <strong>Africa's Talking</strong> après soumission et à chaque changement de statut.
+      </p>
+    </div>
+
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">💰 Tarification</div>
+      <div style="font-size:12px;color:var(--muted);">
+        <div style="margin-bottom:6px;">
+          <span style="font-weight:600;">Standard:</span> {{ config.prix_standard|default:"25 000" }} FCFA/poche
+        </div>
+        <div>
+          <span style="font-weight:600;">Réduit (≥{{ config.seuil_credits|default:"3" }} crédits):</span>
+          {{ config.prix_reduit|default:"0" }} FCFA/poche
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">⚡ Niveaux d'urgence</div>
+      <div style="font-size:12px;display:flex;flex-direction:column;gap:8px;">
+        <div><span class="urgence-critique">🚨 Critique</span> — Traitement immédiat</div>
+        <div><span class="urgence-urgent">⚡ Urgent</span> — Traitement prioritaire</div>
+        <div><span class="urgence-normal">📋 Normal</span> — File standard</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

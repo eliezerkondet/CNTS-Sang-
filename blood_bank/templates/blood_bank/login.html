@@ -1,0 +1,176 @@
+{% extends 'blood_bank/base.html' %}
+
+{% block auth_content %}
+<style>
+  .login-wrap {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .login-left {
+    background: #1A1A1A;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 60px;
+    position: relative; overflow: hidden;
+  }
+
+  .login-left::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 70%, rgba(192,21,42,0.3), transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(192,21,42,0.15), transparent 50%);
+  }
+
+  .blood-drops {
+    position: absolute; inset: 0; overflow: hidden;
+  }
+
+  .drop {
+    position: absolute; font-size: 40px;
+    opacity: 0.08; animation: fall linear infinite;
+  }
+
+  @keyframes fall {
+    from { transform: translateY(-50px) rotate(0deg); opacity: 0.08; }
+    to { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+  }
+
+  .login-logo {
+    position: relative; z-index: 1; text-align: center;
+  }
+
+  .logo-circle {
+    width: 96px; height: 96px;
+    background: var(--crimson);
+    border-radius: 28px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 48px; margin: 0 auto 24px;
+    box-shadow: 0 20px 60px rgba(192,21,42,0.4);
+  }
+
+  .logo-title {
+    font-size: 28px; font-weight: 800; color: white;
+    line-height: 1.2; margin-bottom: 8px;
+  }
+
+  .logo-sub {
+    font-size: 13px; color: rgba(255,255,255,0.4);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+
+  .login-stats {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px; margin-top: 48px; width: 100%;
+  }
+
+  .login-stat {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 16px;
+    text-align: center;
+  }
+
+  .login-stat .val { font-size: 24px; font-weight: 800; color: var(--crimson); }
+  .login-stat .lbl { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+
+  .login-right {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--warm-white);
+    padding: 60px;
+  }
+
+  .login-form-wrap {
+    width: 100%; max-width: 380px;
+  }
+
+  .login-heading {
+    font-size: 26px; font-weight: 800;
+    color: var(--charcoal); margin-bottom: 6px;
+  }
+
+  .login-tagline {
+    font-size: 13px; color: var(--muted); margin-bottom: 36px;
+  }
+
+  @media (max-width: 768px) {
+    .login-wrap { grid-template-columns: 1fr; }
+    .login-left { display: none; }
+    .login-right { padding: 40px 24px; }
+  }
+</style>
+
+<div class="login-wrap">
+  <div class="login-left">
+    <div class="blood-drops" aria-hidden="true">
+      {% for i in "12345678" %}
+      <div class="drop" style="left:{{ forloop.counter0|add:1 }}0%; animation-duration: {{ forloop.counter|add:8 }}s; animation-delay: -{{ forloop.counter }}s;">🩸</div>
+      {% endfor %}
+    </div>
+
+    <div class="login-logo">
+      <div class="logo-circle">🩸</div>
+      <div class="logo-title">Banque de Sang<br>CNTS</div>
+      <div class="logo-sub">Brazzaville · Congo</div>
+    </div>
+
+    <div class="login-stats">
+      <div class="login-stat">
+        <div class="val">8</div>
+        <div class="lbl">Groupes sanguins</div>
+      </div>
+      <div class="login-stat">
+        <div class="val">24/7</div>
+        <div class="lbl">Disponibilité</div>
+      </div>
+      <div class="login-stat">
+        <div class="val">SMS</div>
+        <div class="lbl">Africa's Talking</div>
+      </div>
+      <div class="login-stat">
+        <div class="val">GPS</div>
+        <div class="lbl">Géolocalisé</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-right">
+    <div class="login-form-wrap">
+      <div class="login-heading">Connexion</div>
+      <div class="login-tagline">Centre National de Transfusion Sanguine</div>
+
+      {% if form.errors %}
+      <div class="alert-cnts danger mb-4">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        Identifiants incorrects. Veuillez réessayer.
+      </div>
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-4">
+          <label class="form-label">Nom d'utilisateur</label>
+          {{ form.username }}
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Mot de passe</label>
+          {{ form.password }}
+        </div>
+        <button type="submit" class="btn-blood w-100" style="justify-content:center;padding:12px;">
+          <i class="bi bi-shield-lock"></i> Se connecter
+        </button>
+      </form>
+
+      <div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);text-align:center;">
+        <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;">
+          CNTS · Brazzaville, Congo<br>
+          Système de Gestion de Banque de Sang
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

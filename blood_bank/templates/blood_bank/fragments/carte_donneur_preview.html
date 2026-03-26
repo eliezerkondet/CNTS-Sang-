@@ -1,0 +1,77 @@
+<div class="carte-donneur">
+  <div class="carte-header">
+    <img src="{{ carte.photo.url|default:'/static/img/logo-cnts.png' }}" alt="Logo CNTS">
+    <h3>CARTE DE DONNEUR</h3>
+  </div>
+
+  <div class="carte-body">
+    <div class="donneur-photo">
+      {% if carte.photo %}
+        <img src="{{ carte.photo.url }}" alt="Photo">
+      {% endif %}
+    </div>
+
+    <div class="donneur-info">
+      <p><strong>N°:</strong> {{ carte.numero_carte }}</p>
+      <p><strong>Nom:</strong> {{ donneur.nom_complet }}</p>
+      <p><strong>Groupe:</strong> {{ donneur.groupe_sanguin }}</p>
+      <p><strong>Né le:</strong> {{ donneur.date_naissance|date:"d/m/Y" }}</p>
+    </div>
+
+    <div class="qr-code">
+      {% if carte.qr_code_data %}
+        <img src="data:image/png;base64,{{ carte.qr_code_data }}" alt="QR Code">
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="carte-footer">
+    <p>Émise le: {{ carte.date_emission|date:"d/m/Y" }}</p>
+    <p>Expire le: {{ carte.date_expiration_carte|date:"d/m/Y" }}</p>
+    <p>Centre National de Transfusion Sanguine - Brazzaville</p>
+  </div>
+</div>
+
+<style>
+.carte-donneur {
+  width: 350px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  padding: 20px;
+  background: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+.carte-header {
+  text-align: center;
+  border-bottom: 2px solid #e74c3c;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+.carte-body {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.donneur-photo img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.donneur-info {
+  flex: 1;
+}
+.donneur-info p {
+  margin: 5px 0;
+}
+.qr-code img {
+  width: 80px;
+  height: 80px;
+}
+.carte-footer {
+  text-align: center;
+  font-size: 12px;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}
+</style>

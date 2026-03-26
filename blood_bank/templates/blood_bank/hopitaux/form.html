@@ -1,0 +1,97 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Nouvel hôpital{% endblock %}
+{% block page_title %}Nouvel hôpital{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Ajouter un hôpital</div>
+    <div class="page-subtitle">Établissement partenaire du CNTS</div>
+  </div>
+  <a href="{% url 'hopital_list' %}" class="btn-sm-ghost">
+    <i class="bi bi-arrow-left"></i> Retour
+  </a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <form method="post">
+    {% csrf_token %}
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        🏥 Informations de l'hôpital
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Nom de l'hôpital *</label>
+          <input type="text" name="nom" class="form-control"
+                 placeholder="Ex: Hôpital Général de Brazzaville" required>
+        </div>
+        <div>
+          <label class="form-label">Téléphone</label>
+          <input type="text" name="telephone" class="form-control"
+                 placeholder="+242 XX XXX XXXX">
+        </div>
+        <div>
+          <label class="form-label">Quartier</label>
+          <input type="text" name="quartier" class="form-control"
+                 placeholder="Ex: Bacongo, Poto-Poto...">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Adresse complète</label>
+          <textarea name="adresse" class="form-control" rows="2"
+                    placeholder="Adresse..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Géolocalisation -->
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--crimson);">
+        📍 Géolocalisation — Cliquez sur la carte
+      </div>
+      <div id="mapForm" style="height:300px;border-radius:10px;margin-bottom:14px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="form-label">Latitude</label>
+          <input type="text" name="latitude" id="lat" class="form-control"
+                 placeholder="-4.2634" readonly>
+        </div>
+        <div>
+          <label class="form-label">Longitude</label>
+          <input type="text" name="longitude" id="lng" class="form-control"
+                 placeholder="15.2429" readonly>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-blood">
+      <i class="bi bi-check-circle"></i> Enregistrer l'hôpital
+    </button>
+  </form>
+
+  <div class="card" style="background:rgba(26,92,139,0.03);">
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--info);">
+      ℹ️ Géolocalisation
+    </div>
+    <p style="font-size:12px;color:var(--muted);line-height:1.7;">
+      Cliquez sur la carte pour placer automatiquement les coordonnées GPS
+      de l'hôpital. Ces coordonnées permettront de calculer les distances
+      et optimiser les livraisons de poches.
+    </p>
+  </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('mapForm').setView([-4.2634, 15.2429], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+let marker = null;
+map.on('click', function(e) {
+  if (marker) map.removeLayer(marker);
+  marker = L.marker(e.latlng).addTo(map);
+  document.getElementById('lat').value = e.latlng.lat.toFixed(6);
+  document.getElementById('lng').value = e.latlng.lng.toFixed(6);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Demandes - CNTS{% endblock %}
+{% block page_title %}Demandes de transfusion{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Demandes de transfusion</div>
+    <div class="page-subtitle">Gestion des besoins des établissements de santé</div>
+  </div>
+  <a href="{% url 'demande_create' %}" class="btn-blood">
+    <i class="bi bi-plus-circle"></i> Nouvelle demande
+  </a>
+</div>
+
+<!-- Filtres rapides par statut -->
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+  <a href="{% url 'demande_list' %}" class="btn-sm-ghost {% if not statut %}active{% endif %}">Toutes</a>
+  <a href="?statut=en_attente" class="btn-sm-ghost" style="{% if statut == 'en_attente' %}background:var(--gold);color:white;{% endif %}">⏳ En attente</a>
+  <a href="?statut=en_cours" class="btn-sm-ghost" style="{% if statut == 'en_cours' %}background:var(--info);color:white;{% endif %}">🔄 En cours</a>
+  <a href="?statut=preparee" class="btn-sm-ghost" style="{% if statut == 'preparee' %}background:var(--crimson);color:white;{% endif %}">📦 Préparées</a>
+  <a href="?statut=livree" class="btn-sm-ghost" style="{% if statut == 'livree' %}background:var(--success);color:white;{% endif %}">✅ Livrées</a>
+  <a href="?urgence=critique" class="btn-sm-ghost" style="{% if urgence == 'critique' %}background:var(--crimson);color:white;{% endif %}">🚨 Critiques</a>
+</div>
+
+<div class="card">
+  <table class="table-clean">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Hôpital / Médecin</th>
+        <th>Patient</th>
+        <th>Groupe requis</th>
+        <th>Qté</th>
+        <th>Urgence</th>
+        <th>Prix</th>
+        <th>Date</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in demandes %}
+      <tr>
+        <td><span class="mono" style="font-size:12px;">#{{ d.pk }}</span></td>
+        <td>
+          <div style="font-weight:600;font-size:13px;">{{ d.hopital }}</div>
+          <div style="font-size:11px;color:var(--muted);">Dr. {{ d.medecin }}</div>
+        </td>
+        <td style="font-size:12px;">{{ d.patient_nom|default:"—" }}</td>
+        <td>
+          <span class="blood-badge blood-{{ d.groupe_requis|first|lower }}">{{ d.groupe_requis }}</span>
+        </td>
+        <td style="font-weight:700;text-align:center;">{{ d.quantite }}</td>
+        <td>
+          <span class="urgence-{{ d.urgence }}">
+            {% if d.urgence == 'critique' %}🚨{% elif d.urgence == 'urgent' %}⚡{% else %}📋{% endif %}
+            {{ d.get_urgence_display }}
+          </span>
+        </td>
+        <td style="font-size:12px;font-weight:600;">
+          {{ d.prix_final|floatformat:0 }} FCFA
+        </td>
+        <td style="font-size:12px;color:var(--muted);">
+          {{ d.date_demande|date:"d/m/Y" }}
+        </td>
+        <td>
+          <span class="badge-status
+            {% if d.statut_demande == 'livree' %}status-livree
+            {% elif d.statut_demande == 'en_attente' %}status-en_attente
+            {% elif d.statut_demande == 'preparee' or d.statut_demande == 'validee' %}status-validee
+            {% elif d.statut_demande == 'refusee' %}status-rejetee
+            {% else %}status-en_attente{% endif %}">
+            {{ d.get_statut_demande_display }}
+          </span>
+        </td>
+        <td>
+          <a href="{% url 'demande_detail' d.pk %}" class="btn-sm-ghost">
+            <i class="bi bi-eye"></i>
+          </a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="10" style="text-align:center;padding:48px;color:var(--muted);">
+          <div style="font-size:36px;margin-bottom:10px;">📋</div>
+          Aucune demande enregistrée.
+          <br><a href="{% url 'demande_create' %}" style="color:var(--crimson);">Créer la première demande</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

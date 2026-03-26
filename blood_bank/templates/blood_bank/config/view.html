@@ -1,0 +1,152 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Configuration - CNTS{% endblock %}
+{% block page_title %}Configuration du système{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Paramètres système</div>
+    <div class="page-subtitle">Tarification, prix solidaire et configuration — Réservé au Directeur CNTS</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <form method="post">
+    {% csrf_token %}
+
+    <!-- TARIFICATION -->
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        <i class="bi bi-currency-exchange"></i> Tarification des poches de sang
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label class="form-label">Prix standard (FCFA / poche)</label>
+          {{ form.prix_standard }}
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+            Prix appliqué à tous les patients — CNTS Brazzaville : <strong>7 500 FCFA</strong>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Prix solidaire (FCFA / poche)</label>
+          {{ form.prix_reduit }}
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+            Prix réduit accordé par le Directeur — pas gratuit, juste réduit
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Nombre de dons minimum</label>
+          {{ form.seuil_credits }}
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+            Dons requis pour bénéficier du prix solidaire
+          </div>
+        </div>
+      </div>
+
+      <!-- Explication prix solidaire -->
+      <div style="margin-top:16px;padding:14px;background:rgba(201,168,76,0.06);
+           border-radius:10px;border-left:3px solid var(--gold);">
+        <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:8px;">
+          ⭐ Politique du prix solidaire — CNTS Brazzaville
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7;">
+          Le prix solidaire est accordé <strong>selon décision du Directeur</strong>
+          aux donneurs réguliers actifs et à leur famille lorsqu'ils sont patients.
+          Il n'est pas automatique ni gratuit — c'est une récompense pour fidéliser
+          les donneurs bénévoles et lutter contre la pénurie de sang.
+        </p>
+        <label class="form-label">Message affiché lors de l'attribution</label>
+        {{ form.message_prix_solidaire }}
+      </div>
+    </div>
+
+    <!-- STOCK -->
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        <i class="bi bi-bell-fill"></i> Gestion du stock
+      </div>
+      <div>
+        <label class="form-label">Seuil d'alerte stock (poches par groupe)</label>
+        {{ form.seuil_alerte_stock }}
+        <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+          Une alerte SMS sera envoyée aux gestionnaires si le stock
+          descend en dessous de ce seuil.
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-blood">
+      <i class="bi bi-floppy-fill"></i> Enregistrer la configuration
+    </button>
+  </form>
+
+  <!-- PANNEAU DROIT -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Config actuelle -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px;">⚙️ Configuration actuelle</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+        <div style="display:flex;justify-content:space-between;padding:8px;
+             background:var(--warm-white);border-radius:8px;">
+          <span style="color:var(--muted);">Prix standard</span>
+          <span style="font-weight:800;color:var(--crimson);">
+            {{ config.prix_standard|floatformat:0 }} FCFA
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px;
+             background:rgba(201,168,76,0.06);border-radius:8px;">
+          <span style="color:var(--muted);">Prix solidaire</span>
+          <span style="font-weight:800;color:var(--gold);">
+            {{ config.prix_reduit|floatformat:0 }} FCFA
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px;
+             background:var(--warm-white);border-radius:8px;">
+          <span style="color:var(--muted);">Dons minimum</span>
+          <span style="font-weight:700;">{{ config.seuil_credits }} dons</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px;
+             background:var(--warm-white);border-radius:8px;">
+          <span style="color:var(--muted);">Seuil alerte</span>
+          <span style="font-weight:700;">{{ config.seuil_alerte_stock }} poches</span>
+        </div>
+        {% if config.date_modification %}
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">
+          Modifié le {{ config.date_modification|date:"d/m/Y à H:i" }}
+          {% if config.modifie_par %}
+          par <strong>{{ config.modifie_par.get_full_name|default:config.modifie_par.username }}</strong>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Explication -->
+    <div class="card" style="background:rgba(192,21,42,0.02);border-color:rgba(192,21,42,0.2);">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--crimson);">
+        🏥 Pourquoi 7 500 FCFA ?
+      </div>
+      <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:0;">
+        Ce prix couvre les frais de <strong>qualification biologique</strong>
+        (tests VIH, Hépatite, Syphilis), de conservation et de distribution.
+        Il ne rémunère pas le donneur — le sang est un <strong>don bénévole</strong>.
+        Le prix solidaire réduit récompense les donneurs réguliers qui
+        sauvent des vies.
+      </p>
+    </div>
+
+    <!-- Africa's Talking -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📱 Africa's Talking</div>
+      <div style="font-size:12px;color:var(--muted);">
+        <div>Username: <code>{{ AFRICASTALKING_USERNAME|default:"sandbox" }}</code></div>
+        <div>Sender ID: <code>BanqueSang</code></div>
+        <div>Endpoint USSD: <code>/ussd/</code></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

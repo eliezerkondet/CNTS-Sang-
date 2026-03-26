@@ -1,0 +1,184 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Nouveau prélèvement - CNTS{% endblock %}
+{% block page_title %}Enregistrer un prélèvement{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ title }}</div>
+    <div class="page-subtitle">Étape 1/2 · Collecte du sang</div>
+  </div>
+  <a href="{% url 'poche_list' %}" class="btn-sm-ghost">
+    <i class="bi bi-arrow-left"></i> Retour
+  </a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+
+  <!-- ── FORMULAIRE ── -->
+  <div>
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="card mb-4">
+        <div style="font-size:14px;font-weight:700;margin-bottom:18px;color:var(--crimson);">
+          <i class="bi bi-droplet-fill"></i> Informations du prélèvement
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+
+          <div style="grid-column:1/-1;">
+            <label class="form-label">Donneur *</label>
+            {{ form.donneur }}
+            {% if form.donneur.errors %}
+              <div style="color:var(--crimson);font-size:11px;margin-top:3px;">
+                {{ form.donneur.errors.0 }}
+              </div>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="form-label">Date du prélèvement *</label>
+            {{ form.date_prelevement }}
+            {% if form.date_prelevement.errors %}
+              <div style="color:var(--crimson);font-size:11px;margin-top:3px;">
+                {{ form.date_prelevement.errors.0 }}
+              </div>
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="form-label">Volume (ml)</label>
+            {{ form.volume_ml }}
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+              Standard : 450 ml · Min : 300 ml · Max : 600 ml
+            </div>
+          </div>
+
+          <div style="grid-column:1/-1;">
+            <label class="form-label">Notes / Observations</label>
+            {{ form.notes }}
+          </div>
+
+        </div>
+      </div>
+
+      {% if form.non_field_errors %}
+      <div class="alert-cnts danger mb-3">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        {{ form.non_field_errors.0 }}
+      </div>
+      {% endif %}
+
+      <div style="display:flex;gap:10px;">
+        <button type="submit" class="btn-blood">
+          <i class="bi bi-check-circle"></i> Enregistrer et passer à l'analyse
+        </button>
+        <a href="{% url 'poche_list' %}" class="btn-sm-ghost">Annuler</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── PANNEAU LATÉRAL ── -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Étapes du processus (hardcodées — filtre |split non disponible en Django) -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--crimson);">
+        <i class="bi bi-list-ol"></i> Processus de collecte
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
+          <div style="width:24px;height:24px;min-width:24px;background:var(--crimson);
+               border-radius:50%;display:flex;align-items:center;justify-content:center;
+               color:white;font-size:11px;font-weight:700;">1</div>
+          <span style="color:var(--slate);">Vérification de l'aptitude médicale du donneur</span>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
+          <div style="width:24px;height:24px;min-width:24px;background:var(--crimson);
+               border-radius:50%;display:flex;align-items:center;justify-content:center;
+               color:white;font-size:11px;font-weight:700;">2</div>
+          <span style="color:var(--slate);">Identification et enregistrement dans le système</span>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
+          <div style="width:24px;height:24px;min-width:24px;background:var(--crimson);
+               border-radius:50%;display:flex;align-items:center;justify-content:center;
+               color:white;font-size:11px;font-weight:700;">3</div>
+          <span style="color:var(--slate);">Prélèvement sanguin (450 ml standard)</span>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
+          <div style="width:24px;height:24px;min-width:24px;background:var(--crimson);
+               border-radius:50%;display:flex;align-items:center;justify-content:center;
+               color:white;font-size:11px;font-weight:700;">4</div>
+          <span style="color:var(--slate);">Étiquetage et génération du code barre</span>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
+          <div style="width:24px;height:24px;min-width:24px;background:var(--success);
+               border-radius:50%;display:flex;align-items:center;justify-content:center;
+               color:white;font-size:11px;font-weight:700;">5</div>
+          <span style="color:var(--slate);">Transfert au laboratoire pour analyses</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Relation UML include -->
+    <div class="card" style="background:rgba(192,21,42,0.02);border-color:rgba(192,21,42,0.25);">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--crimson);">
+        <i class="bi bi-diagram-3-fill"></i> Relation UML «include»
+      </div>
+      <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:0;">
+        Ce formulaire <strong>inclut</strong> automatiquement : génération d'un
+        code barre unique, calcul de la date d'expiration (J+42), mise à jour
+        du dernier don et incrémentation du crédit solidaire (+1).
+      </p>
+    </div>
+
+    <!-- SMS automatique -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">
+        <i class="bi bi-phone-fill" style="color:var(--success);"></i> SMS automatique
+      </div>
+      <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:0;">
+        Un SMS de remerciement est envoyé au donneur via
+        <strong>Africa's Talking</strong> après enregistrement.
+      </p>
+    </div>
+
+    <!-- Durées conservation -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">
+        <i class="bi bi-clock-history" style="color:var(--info);"></i> Durées de conservation
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;justify-content:space-between;
+             padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
+          <span style="color:var(--muted);">Sang total</span>
+          <strong>42 jours</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;
+             padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
+          <span style="color:var(--muted);">Plasma frais congelé</span>
+          <strong>365 jours</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;
+             padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
+          <span style="color:var(--muted);">Plaquettes</span>
+          <strong>5 jours</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;
+             padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
+          <span style="color:var(--muted);">Globules rouges</span>
+          <strong>42 jours</strong>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}{{ title }} - CNTS{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ title }}</div>
+    <div class="page-subtitle">Campagne de sensibilisation IEC</div>
+  </div>
+  <a href="{% url 'message_list' %}" class="btn-sm-ghost"><i class="bi bi-arrow-left"></i> Retour</a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <form method="post">
+    {% csrf_token %}
+    <div class="card mb-4">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+        <i class="bi bi-chat-dots-fill"></i> Composition du message
+      </div>
+      <div style="display:grid;gap:14px;">
+        <div>
+          <label class="form-label">Titre de la campagne *</label>
+          {{ form.titre }}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <label class="form-label">Audience cible *</label>
+            {{ form.cible }}
+          </div>
+          <div>
+            <label class="form-label">Canal *</label>
+            {{ form.type_message }}
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Contenu du message *</label>
+          {{ form.contenu }}
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            <div style="font-size:11px;color:var(--muted);">Max 160 caractères pour un SMS standard</div>
+            <div style="font-size:11px;color:var(--muted);" id="charCount">0 / 480</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button type="submit" class="btn-blood"><i class="bi bi-floppy-fill"></i> Enregistrer</button>
+      <a href="{% url 'message_list' %}" class="btn-sm-ghost">Annuler</a>
+    </div>
+  </form>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">📱 Aperçu SMS</div>
+      <div style="background:#1A1A1A;border-radius:12px;padding:16px;">
+        <div style="background:#2A2A2A;border-radius:10px;padding:12px;font-size:12px;color:white;font-family:'JetBrains Mono',monospace;min-height:80px;" id="smsPreview">
+          Le texte du message apparaîtra ici...
+        </div>
+        <div style="text-align:right;font-size:10px;color:#666;margin-top:6px;" id="smsFooter">
+          BanqueSang · CNTS
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">ℹ️ Conseils</div>
+      <div style="font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:6px;">
+        <div>• Utilisez un ton positif et encourageant</div>
+        <div>• Incluez un appel à l'action clair</div>
+        <div>• Mentionnez l'adresse du CNTS</div>
+        <div>• Évitez les caractères spéciaux</div>
+        <div>• 160 car. = 1 SMS (tarification AT)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const contenuField = document.getElementById('id_contenu');
+const charCount = document.getElementById('charCount');
+const preview = document.getElementById('smsPreview');
+
+contenuField.addEventListener('input', function() {
+  const len = this.value.length;
+  charCount.textContent = `${len} / 480`;
+  charCount.style.color = len > 320 ? 'var(--crimson)' : len > 160 ? 'var(--gold)' : 'var(--muted)';
+  preview.textContent = this.value || 'Le texte du message apparaîtra ici...';
+});
+</script>
+{% endblock %}

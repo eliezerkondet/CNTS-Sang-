@@ -1,0 +1,100 @@
+{% extends 'blood_bank/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container">
+    <h2>Accueil des candidats</h2>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Enregistrer un candidat</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="form-group">
+                            <label>Nom complet *</label>
+                            <input type="text" name="nom_complet" class="form-control" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Téléphone *</label>
+                            <input type="tel" name="telephone" class="form-control" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Type de visite</label>
+                            <select name="type_visite" class="form-control">
+                                {% for value, label in type_choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h5>Critères d'éligibilité</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="age_ok" name="age_ok">
+                                    <label class="form-check-label" for="age_ok">Âge entre 18 et 65 ans</label>
+                                </div>
+
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="poids_ok" name="poids_ok">
+                                    <label class="form-check-label" for="poids_ok">Poids ≥ 50 kg</label>
+                                </div>
+
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="bonne_sante" name="bonne_sante">
+                                    <label class="form-check-label" for="bonne_sante">Bonne santé générale</label>
+                                </div>
+
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="pas_don_recent" name="pas_don_recent">
+                                    <label class="form-check-label" for="pas_don_recent">Pas de don dans les 56 derniers jours</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-3">
+                            <label>Notes</label>
+                            <textarea name="notes" class="form-control" rows="3"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary mt-3">Enregistrer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Candidats du jour</h4>
+                </div>
+                <div class="card-body">
+                    {% for candidat in candidats_jour %}
+                        <div class="border-bottom mb-3 pb-2">
+                            <strong>{{ candidat.nom_complet }}</strong><br>
+                            Tél: {{ candidat.telephone }}<br>
+                            Type: {{ candidat.get_type_visite_display }}<br>
+                            {% if candidat.eligible_don %}
+                                <span class="badge badge-success">Éligible au don</span>
+                            {% else %}
+                                <span class="badge badge-danger">Non éligible</span>
+                            {% endif %}
+                        </div>
+                    {% empty %}
+                        <p>Aucun candidat aujourd'hui</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
