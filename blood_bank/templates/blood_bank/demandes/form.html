@@ -94,34 +94,80 @@
       <!-- Règle stricte compatibilité groupes sanguins -->
       <div style="margin-top:14px;padding:12px;background:rgba(26,92,139,0.05);
            border-radius:8px;border-left:3px solid var(--info);">
-        <div style="font-size:12px;font-weight:700;color:var(--info);margin-bottom:8px;">
-          <i class="bi bi-shield-check"></i> Règle de compatibilité CNTS — Groupe identique UNIQUEMENT
+       <div style="font-size:13px;font-weight:700;color:var(--info);margin-bottom:10px;">
+            <i class="bi bi-droplet-half"></i> Compatibilité des groupes sanguins (réception)
+       </div>
+
+        <div style="
+          display:grid;
+          grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+          gap:10px;
+          font-size:12px;
+        ">
+
+          <!-- A+ -->
+          <div style="background:#fff5f5;padding:8px;border-radius:8px;text-align:center;border:1px solid rgba(192,21,42,0.15);">
+            <strong style="color:var(--crimson);font-size:14px;">A+</strong><br>
+            <span>Reçoit de :</span><br>
+            <strong>A+, A-, O+, O-</strong>
+          </div>
+
+          <!-- A- -->
+          <div style="background:#fff5f5;padding:8px;border-radius:8px;text-align:center;border:1px solid rgba(192,21,42,0.15);">
+            <strong style="color:var(--crimson);font-size:14px;">A-</strong><br>
+            <span>Reçoit de :</span><br>
+            <strong>A-, O-</strong>
+          </div>
+
+          <!-- B+ -->
+          <div style="background:#f5f9ff;padding:8px;border-radius:8px;text-align:center;border:1px solid rgba(26,92,139,0.15);">
+            <strong style="color:var(--info);font-size:14px;">B+</strong><br>
+            <span>Reçoit de :</span><br>
+            <strong>B+, B-, O+, O-</strong>
+          </div>
+
+          <!-- B- -->
+          <div style="background:#f5f9ff;padding:8px;border-radius:8px;text-align:center;border:1px solid rgba(26,92,139,0.15);">
+            <strong style="color:var(--info);font-size:14px;">B-</strong><br>
+            <span>Reçoit de :</span><br>
+            <strong>B-, O-</strong>
+          </div>
+
+          <!-- AB+ -->
+          <div style="background:#fffaf2;padding:8px;border-radius:8px;text-align:center;border:1px solid rgba(201,168,76,0.2);">
+            <strong style="color:var(--gold);font-size:14px;">AB+</strong><br>
+            <span>Reçoit de :</span><br>
+            <strong>Tous les groupes</strong>
+          </div>
+
+          <!-- AB- -->
+          <div style="background:#fffaf2;padding:8px;border-radius:8px;text-align:center;border:1px solid rgba(201,168,76,0.2);">
+            <strong style="color:var(--gold);font-size:14px;">AB-</strong><br>
+            <span>Reçoit de :</span><br>
+            <strong>AB-, A-, B-, O-</strong>
+          </div>
+
+          <!-- O+ -->
+          <div style="background:#f2fff7;padding:8px;border-radius:8px;text-align:center;border:1px solid rgba(26,122,74,0.15);">
+            <strong style="color:var(--success);font-size:14px;">O+</strong><br>
+            <span>Reçoit de :</span><br>
+            <strong>O+, O-</strong>
+          </div>
+
+          <!-- O- -->
+          <div style="background:#f2fff7;padding:8px;border-radius:8px;text-align:center;border:1px solid rgba(26,122,74,0.15);">
+            <strong style="color:var(--success);font-size:14px;">O-</strong><br>
+            <span>Reçoit de :</span><br>
+            <strong>O- uniquement</strong>
+          </div>
+
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;">
-          <div style="background:rgba(192,21,42,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
-            <strong style="color:var(--crimson);">A+</strong> → reçoit de <strong>A+</strong> uniquement
-          </div>
-          <div style="background:rgba(192,21,42,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
-            <strong style="color:var(--crimson);">A-</strong> → reçoit de <strong>A-</strong> uniquement
-          </div>
-          <div style="background:rgba(26,92,139,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
-            <strong style="color:var(--info);">B+</strong> → reçoit de <strong>B+</strong> uniquement
-          </div>
-          <div style="background:rgba(26,92,139,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
-            <strong style="color:var(--info);">B-</strong> → reçoit de <strong>B-</strong> uniquement
-          </div>
-          <div style="background:rgba(201,168,76,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
-            <strong style="color:var(--gold);">AB+</strong> → reçoit de <strong>AB+</strong> uniquement
-          </div>
-          <div style="background:rgba(201,168,76,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
-            <strong style="color:var(--gold);">AB-</strong> → reçoit de <strong>AB-</strong> uniquement
-          </div>
-          <div style="background:rgba(26,122,74,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
-            <strong style="color:var(--success);">O+</strong> → reçoit de <strong>O+</strong> uniquement
-          </div>
-          <div style="background:rgba(26,122,74,0.06);padding:5px 7px;border-radius:6px;text-align:center;">
-            <strong style="color:var(--success);">O-</strong> → reçoit de <strong>O-</strong> uniquement
-          </div>
+
+        <!-- BONUS -->
+        <div style="margin-top:12px;font-size:12px;">
+          <span style="color:var(--crimson);font-weight:600;">Donneur universel :</span> O-
+          <br>
+          <span style="color:var(--info);font-weight:600;">Receveur universel :</span> AB+
         </div>
         <div style="margin-top:8px;font-size:11px;color:var(--muted);">
           <i class="bi bi-info-circle"></i>

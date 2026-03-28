@@ -378,6 +378,74 @@ def poche_detail(request, pk):
     return render(request, 'blood_bank/poches/detail.html', {'poche': poche})
 
 
+def verifier_alertes_stock():
+    """Vérifie et crée des alertes si stock insuffisant"""
+    from .models import Configuration, PocheSang, AlerteStock, Utilisateur
+    import logging
+
+    try:
+        config = Configuration.get_config()
+    except:
+        # Si la configuration n'existe pas, utiliser des valeurs par défaut
+        class DefaultConfig:
+            seuil_alerte_stock = 5
+
+        config = DefaultConfig()
+
+    alertes_creees = []
+
+    for type_produit, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
+        for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
+            count = PocheSang.objects.filter(
+                groupe_sanguin=groupe,
+                type_produit=type_produit,
+                statut='disponible'
+            ).count()
+
+            if count <= config.seuil_alerte_stock:
+                niveau = 'critical' if count == 0 else 'warning'
+
+                alerte, created = AlerteStock.objects.get_or_create(
+                    groupe_sanguin=groupe,
+                    type_produit=type_produit,
+                    resolue=False,
+                    defaults={
+                        'niveau': niveau,
+                        'message': f"Stock {type_label} {groupe}: {count} poche(s) disponible(s). Seuil: {config.seuil_alerte_stock}",
+                        'stock_actuel': count,
+                        'seuil': config.seuil_alerte_stock,
+                    }
+                )
+
+                if created:
+                    alertes_creees.append({
+                        'groupe': groupe,
+                        'type': type_label,
+                        'count': count
+                    })
+
+                    # Appeler la fonction d'alerte avec 3 arguments
+                    try:
+                        from .sms_service import envoyer_alerte_stock
+                        envoyer_alerte_stock(groupe, count, config.seuil_alerte_stock)
+                    except Exception as e:
+                        print(f"Erreur envoi alerte SMS: {e}")
+
+                    # Logger l'alerte au lieu de créer une notification
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        f"ALERTE STOCK - {type_label} {groupe}: {count} poches (seuil: {config.seuil_alerte_stock})")
+
+                    # Optionnel: Utiliser messages Django si vous avez un request
+                    # from django.contrib import messages
+                    # messages.warning(request, f"⚠️ ALERTE STOCK - {type_label} {groupe}: {count} poche(s) restante(s)")
+
+    if alertes_creees:
+        print(f"Nouvelles alertes créées: {len(alertes_creees)}")
+
+    return alertes_creees
+
+
 @login_required
 @role_required('infirmier', 'medecin', 'admin')
 def poche_create(request):
@@ -410,6 +478,7 @@ def poche_create(request):
     return render(request, 'blood_bank/poches/form.html', {
         'form': form, 'title': 'Enregistrer un prélèvement'
     })
+
 
 
 @login_required
@@ -473,33 +542,6 @@ def poche_analyser(request, pk):
     return render(request, 'blood_bank/poches/analyser.html', {
         'form': form, 'poche': poche
     })
-
-
-def verifier_alertes_stock():
-    """Vérifie et crée des alertes si stock insuffisant"""
-    config = Configuration.get_config()
-    for type_produit, _ in PocheSang.TYPE_PRODUIT_CHOICES:
-        for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
-            count = PocheSang.objects.filter(
-                groupe_sanguin=groupe,
-                type_produit=type_produit,
-                statut='disponible'
-            ).count()
-            if count <= config.seuil_alerte_stock:
-                niveau = 'critical' if count == 0 else 'warning'
-                alerte, created = AlerteStock.objects.get_or_create(
-                    groupe_sanguin=groupe,
-                    type_produit=type_produit,
-                    resolue=False,
-                    defaults={
-                        'niveau': niveau,
-                        'message': f"Stock {type_produit} {groupe}: {count} poche(s) disponible(s). Seuil: {config.seuil_alerte_stock}",
-                        'stock_actuel': count,
-                        'seuil': config.seuil_alerte_stock,
-                    }
-                )
-                if created:
-                    envoyer_alerte_stock(groupe, count, config.seuil_alerte_stock, type_produit)
 
 
 # ============================================================

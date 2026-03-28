@@ -17,7 +17,7 @@
 
   <!-- ── FORMULAIRE ── -->
   <div>
-    <form method="post">
+    <form method="post" id="pocheForm">
       {% csrf_token %}
 
       <div class="card mb-4">
@@ -35,6 +35,12 @@
                 {{ form.donneur.errors.0 }}
               </div>
             {% endif %}
+            {% if not form.donneur.field.queryset.exists %}
+            <div style="color:var(--crimson);font-size:12px;margin-top:5px;">
+              ⚠️ Aucun donneur éligible disponible.
+              <a href="{% url 'donneur_create' %}">Ajouter un donneur</a> d'abord.
+            </div>
+            {% endif %}
           </div>
 
           <div>
@@ -48,16 +54,39 @@
           </div>
 
           <div>
+            <label class="form-label">Type de produit *</label>
+            {{ form.type_produit }}
+            {% if form.type_produit.errors %}
+              <div style="color:var(--crimson);font-size:11px;margin-top:3px;">
+                {{ form.type_produit.errors.0 }}
+              </div>
+            {% endif %}
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+              {{ form.type_produit.help_text }}
+            </div>
+          </div>
+
+          <div>
             <label class="form-label">Volume (ml)</label>
             {{ form.volume_ml }}
             <div style="font-size:11px;color:var(--muted);margin-top:3px;">
               Standard : 450 ml · Min : 300 ml · Max : 600 ml
             </div>
+            {% if form.volume_ml.errors %}
+              <div style="color:var(--crimson);font-size:11px;margin-top:3px;">
+                {{ form.volume_ml.errors.0 }}
+              </div>
+            {% endif %}
           </div>
 
           <div style="grid-column:1/-1;">
             <label class="form-label">Notes / Observations</label>
             {{ form.notes }}
+            {% if form.notes.errors %}
+              <div style="color:var(--crimson);font-size:11px;margin-top:3px;">
+                {{ form.notes.errors.0 }}
+              </div>
+            {% endif %}
           </div>
 
         </div>
@@ -71,7 +100,7 @@
       {% endif %}
 
       <div style="display:flex;gap:10px;">
-        <button type="submit" class="btn-blood">
+        <button type="submit" class="btn-blood" id="submitBtn">
           <i class="bi bi-check-circle"></i> Enregistrer et passer à l'analyse
         </button>
         <a href="{% url 'poche_list' %}" class="btn-sm-ghost">Annuler</a>
@@ -82,52 +111,44 @@
   <!-- ── PANNEAU LATÉRAL ── -->
   <div style="display:flex;flex-direction:column;gap:16px;">
 
-    <!-- Étapes du processus (hardcodées — filtre |split non disponible en Django) -->
     <div class="card">
       <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--crimson);">
         <i class="bi bi-list-ol"></i> Processus de collecte
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;">
-
         <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
           <div style="width:24px;height:24px;min-width:24px;background:var(--crimson);
                border-radius:50%;display:flex;align-items:center;justify-content:center;
                color:white;font-size:11px;font-weight:700;">1</div>
           <span style="color:var(--slate);">Vérification de l'aptitude médicale du donneur</span>
         </div>
-
         <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
           <div style="width:24px;height:24px;min-width:24px;background:var(--crimson);
                border-radius:50%;display:flex;align-items:center;justify-content:center;
                color:white;font-size:11px;font-weight:700;">2</div>
           <span style="color:var(--slate);">Identification et enregistrement dans le système</span>
         </div>
-
         <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
           <div style="width:24px;height:24px;min-width:24px;background:var(--crimson);
                border-radius:50%;display:flex;align-items:center;justify-content:center;
                color:white;font-size:11px;font-weight:700;">3</div>
           <span style="color:var(--slate);">Prélèvement sanguin (450 ml standard)</span>
         </div>
-
         <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
           <div style="width:24px;height:24px;min-width:24px;background:var(--crimson);
                border-radius:50%;display:flex;align-items:center;justify-content:center;
                color:white;font-size:11px;font-weight:700;">4</div>
           <span style="color:var(--slate);">Étiquetage et génération du code barre</span>
         </div>
-
         <div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;">
           <div style="width:24px;height:24px;min-width:24px;background:var(--success);
                border-radius:50%;display:flex;align-items:center;justify-content:center;
                color:white;font-size:11px;font-weight:700;">5</div>
           <span style="color:var(--slate);">Transfert au laboratoire pour analyses</span>
         </div>
-
       </div>
     </div>
 
-    <!-- Relation UML include -->
     <div class="card" style="background:rgba(192,21,42,0.02);border-color:rgba(192,21,42,0.25);">
       <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--crimson);">
         <i class="bi bi-diagram-3-fill"></i> Relation UML «include»
@@ -139,46 +160,84 @@
       </p>
     </div>
 
-    <!-- SMS automatique -->
     <div class="card">
       <div style="font-size:13px;font-weight:700;margin-bottom:8px;">
         <i class="bi bi-phone-fill" style="color:var(--success);"></i> SMS automatique
       </div>
       <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:0;">
-        Un SMS de remerciement est envoyé au donneur via
-        <strong>Africa's Talking</strong> après enregistrement.
+        Un SMS de remerciement est envoyé au donneur après enregistrement.
       </p>
     </div>
 
-    <!-- Durées conservation -->
     <div class="card">
       <div style="font-size:13px;font-weight:700;margin-bottom:10px;">
         <i class="bi bi-clock-history" style="color:var(--info);"></i> Durées de conservation
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;">
-        <div style="display:flex;justify-content:space-between;
-             padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
+        <div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
           <span style="color:var(--muted);">Sang total</span>
           <strong>42 jours</strong>
         </div>
-        <div style="display:flex;justify-content:space-between;
-             padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
-          <span style="color:var(--muted);">Plasma frais congelé</span>
-          <strong>365 jours</strong>
+        <div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
+          <span style="color:var(--muted);">Culot érythrocytaire</span>
+          <strong>42 jours</strong>
         </div>
-        <div style="display:flex;justify-content:space-between;
-             padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
-          <span style="color:var(--muted);">Plaquettes</span>
+        <div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
+          <span style="color:var(--muted);">Culot plaquettaire</span>
           <strong>5 jours</strong>
         </div>
-        <div style="display:flex;justify-content:space-between;
-             padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
-          <span style="color:var(--muted);">Globules rouges</span>
-          <strong>42 jours</strong>
+        <div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--warm-white);border-radius:6px;font-size:12px;">
+          <span style="color:var(--muted);">Cryoprécipité</span>
+          <strong>365 jours</strong>
         </div>
       </div>
     </div>
 
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('pocheForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (form) {
+        // Désactiver le double soumission
+        form.addEventListener('submit', function(e) {
+            // Vérifier les champs requis
+            const donneur = document.querySelector('#id_donneur');
+            const date = document.querySelector('#id_date_prelevement');
+            const typeProduit = document.querySelector('#id_type_produit');
+
+            let hasError = false;
+            let errorMessage = '';
+
+            if (!donneur || !donneur.value) {
+                errorMessage = 'Veuillez sélectionner un donneur';
+                hasError = true;
+            } else if (!date || !date.value) {
+                errorMessage = 'Veuillez renseigner la date de prélèvement';
+                hasError = true;
+            } else if (!typeProduit || !typeProduit.value) {
+                errorMessage = 'Veuillez sélectionner le type de produit';
+                hasError = true;
+            }
+
+            if (hasError) {
+                e.preventDefault();
+                alert(errorMessage);
+                return false;
+            }
+
+            // Désactiver le bouton pour éviter le double clic
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enregistrement en cours...';
+            }
+
+            return true;
+        });
+    }
+});
+</script>
 {% endblock %}
