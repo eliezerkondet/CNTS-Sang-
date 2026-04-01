@@ -536,51 +536,138 @@ class LogSMS(models.Model):
 # VISITEUR CNTS — celui qui vient rendre le sang sans être donneur
 # ============================================================
 
+# models.py
+
 class VisiteurCNTS(models.Model):
     """
-    Personne qui vient au CNTS pour rendre des poches de sang
-    transfusées à un patient — pas un donneur bénévole.
+    Donneur familial/remplaçant : personne qui vient donner son sang
+    pour un patient spécifique (rendu de poche = don de sang)
     """
     TYPE_VISITE = [
-        ('rendu_poche', 'Rendu de poche transfusée'),
+        ('don_familial', 'Don familial (pour un patient)'),
         ('retrait_resultats', 'Retrait de résultats'),
         ('renseignement', 'Renseignement'),
     ]
 
-    nom_complet = models.CharField(max_length=200)
+    STATUT_DON = [
+        ('en_attente', 'En attente de prélèvement'),
+        ('preleve', 'Prélèvement effectué'),
+        ('en_analyse', 'En analyse'),
+        ('disponible', 'Disponible pour patient'),
+        ('utilisee', 'Utilisée pour patient'),
+        ('rejetee', 'Rejetée'),
+    ]
+
+    # Informations du visiteur (donneur familial)
+    nom_complet = models.CharField(max_length=200, verbose_name="Nom et prénom")
     telephone = models.CharField(max_length=20)
-    type_visite = models.CharField(
-        max_length=30,
-        choices=TYPE_VISITE,
-        default='rendu_poche'
-    )
-    nom_patient = models.CharField(
-        max_length=200,
+    type_visite = models.CharField(max_length=30, choices=TYPE_VISITE, default='don_familial')
+
+    # Informations sur le patient
+    nom_patient = models.CharField(max_length=200, verbose_name="Nom du patient concerné")
+    prenom_patient = models.CharField(max_length=200, blank=True, verbose_name="Prénom du patient")
+    telephone_patient = models.CharField(max_length=20, blank=True, verbose_name="Téléphone du patient")
+    groupe_patient = models.CharField(
+        max_length=3,
         blank=True,
-        verbose_name="Nom du patient concerné"
+        choices=Donneur.GROUPE_CHOICES,
+        verbose_name="Groupe sanguin du patient"
     )
-    nombre_poches_rendues = models.IntegerField(
-        default=0,
-        verbose_name="Nombre de poches rendues"
+    hopital_patient = models.CharField(max_length=200, blank=True, verbose_name="Hôpital du patient")
+    demande_associee = models.ForeignKey(
+        'DemandeTransfusion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='visiteurs_associes',
+        verbose_name="Demande de transfusion associée"
     )
+
+    # Don du sang
+    poche_associee = models.OneToOneField(
+        'PocheSang',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='visiteur_donneur',
+        verbose_name="Poche de sang associée"
+    )
+    statut_don = models.CharField(
+        max_length=20,
+        choices=STATUT_DON,
+        default='en_attente',
+        verbose_name="Statut du don"
+    )
+    date_prelevement = models.DateTimeField(null=True, blank=True, verbose_name="Date de prélèvement")
+    preleve_par = models.ForeignKey(
+        Utilisateur,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prelevements_visiteurs',
+        verbose_name="Prélevé par"
+    )
+
+    # Autres informations
     notes = models.TextField(blank=True)
     date_visite = models.DateTimeField(auto_now_add=True)
     enregistre_par = models.ForeignKey(
         Utilisateur,
         on_delete=models.SET_NULL,
-        null=True, blank=True
+        null=True, blank=True,
+        related_name='visiteurs_enregistres'
     )
-    # SMS envoyé pour résultats
     sms_resultats_envoye = models.BooleanField(default=False)
 
     class Meta:
-        verbose_name = "Visiteur CNTS"
-        verbose_name_plural = "Visiteurs CNTS"
+        verbose_name = "Donneur familial"
+        verbose_name_plural = "Donneurs familiaux"
         ordering = ['-date_visite']
 
     def __str__(self):
-        return f"{self.nom_complet} — {self.get_type_visite_display()} ({self.date_visite.strftime('%d/%m/%Y')})"
+        return f"{self.nom_complet} → Patient: {self.nom_patient} ({self.get_statut_don_display()})"
 
+    def creer_poche_sang(self, utilisateur):
+        """
+        Crée une poche de sang à partir du don du visiteur
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+
+        # Créer un donneur temporaire si ce visiteur n'est pas encore donneur
+        donneur, created = Donneur.objects.get_or_create(
+            telephone=self.telephone,
+            defaults={
+                'nom_complet': self.nom_complet,
+                'telephone': self.telephone,
+                'sexe': 'M',  # À déterminer lors de l'examen
+                'date_naissance': timezone.now().date() - timedelta(days=365 * 25),  # Âge par défaut
+                'poids': 70,  # Valeur par défaut
+                'type_donneur': 'familial',
+                'classification': 'candidat',
+                'actif': False,
+            }
+        )
+
+        # Créer la poche de sang
+        poche = PocheSang.objects.create(
+            donneur=donneur,
+            type_produit='sang_total',
+            date_prelevement=timezone.now().date(),
+            statut='en_analyse',
+            volume_ml=450,
+            groupe_sanguin='',  # Sera déterminé par les tests
+            creee_par=utilisateur,
+            notes=f"Don familial pour patient: {self.nom_patient} - Hôpital: {self.hopital_patient}"
+        )
+
+        self.poche_associee = poche
+        self.statut_don = 'preleve'
+        self.date_prelevement = timezone.now()
+        self.preleve_par = utilisateur
+        self.save()
+
+        return poche
 
 # ============================================================
 # EXAMEN MÉDICAL COMPLET — avant enregistrement comme donneur

@@ -162,7 +162,11 @@ def dashboard(request):
             {'nom': 'Stock', 'url': 'stock_view', 'icon': 'stock', 'color': 'primary'},
             {'nom': 'Délivrance', 'url': 'demande_list', 'icon': 'delivery', 'color': 'success'},
         ]
-
+    demandes_prete_count = 0
+    if request.user.role == 'responsable':
+        demandes_prete_count = DemandeTransfusion.objects.filter(
+            statut_demande='preparee'
+        ).count()
     context = {
         'stats': stats,
         'stock_par_groupe': stock_par_groupe,
@@ -175,6 +179,7 @@ def dashboard(request):
         'config': config,
         'acces_rapide': acces_rapide,
         'user_role': request.user.role,
+        'demandes_prete_count': demandes_prete_count,
     }
     return render(request, 'blood_bank/dashboard.html', context)
 
@@ -767,6 +772,125 @@ def demande_traiter(request, pk):
     return redirect('demande_detail', pk=pk)
 
 
+# Dans views.py
+
+@login_required
+@role_required('responsable', 'admin')
+def demande_livrer(request, pk):
+    """
+    Vue simplifiée : le responsable de délivrance livre la demande
+    Les poches de sang sont automatiquement déduites du stock
+    """
+    demande = get_object_or_404(DemandeTransfusion, pk=pk)
+
+    if request.method == 'POST':
+        notes = request.POST.get('notes_livraison', '')
+
+        # Vérifier que la demande est bien préparée
+        if demande.statut_demande != 'preparee':
+            messages.error(request, "Cette demande n'est pas prête pour la livraison.")
+            return redirect('demande_detail', pk=pk)
+
+        # Récupérer les poches attribuées
+        poches_a_livrer = demande.poches_attribuees.all()
+
+        if not poches_a_livrer:
+            messages.error(request, "Aucune poche attribuée à cette demande.")
+            return redirect('demande_detail', pk=pk)
+
+        # Compter le nombre de poches à livrer
+        nb_poches = poches_a_livrer.count()
+
+        # === RÉDUCTION DES POCHES DE SANG ===
+        # Mettre à jour le statut des poches (elles passent de "attribuée" à "utilisée")
+        for poche in poches_a_livrer:
+            # Vérifier que la poche est encore attribuée
+            if poche.statut != 'attribuee':
+                messages.warning(request, f"⚠ La poche {poche.code_barre} n'est plus disponible.")
+                continue
+
+            # Changer le statut de la poche
+            poche.statut = 'utilisee'
+            poche.save()
+
+            # Enregistrer dans la traçabilité
+            TracabiliteEvenement.objects.create(
+                poche=poche,
+                etape='livraison',
+                effectue_par=request.user,
+                hopital=demande.hopital,
+                notes=f"Livrée pour demande #{demande.pk} - Patient: {demande.patient_nom} - {notes}"
+            )
+
+        # Mettre à jour la demande
+        demande.statut_demande = 'livree'
+        demande.livre_par = request.user
+        demande.date_livraison = timezone.now()
+        demande.notes_livraison = notes
+        demande.save()
+
+        # Envoyer un SMS d'information au médecin (pas de validation)
+        if demande.telephone_contact:
+            try:
+                import africastalking
+                from django.conf import settings
+                africastalking.initialize(
+                    settings.AFRICASTALKING_USERNAME,
+                    settings.AFRICASTALKING_API_KEY
+                )
+                sms = africastalking.SMS
+                message_sms = (
+                    f"CNTS - Livraison effectuée\n"
+                    f"Demande N°{demande.pk}\n"
+                    f"{nb_poches} poche(s) de {demande.get_type_produit_display()}\n"
+                    f"Groupe: {demande.groupe_requis}\n"
+                    f"Patient: {demande.patient_nom}\n"
+                    f"Livré par: {request.user.get_full_name()}\n"
+                    f"Date: {timezone.now().strftime('%d/%m/%Y à %H:%M')}\n"
+                    f"Merci de votre collaboration !"
+                )
+                sms.send(message_sms, [demande.telephone_contact])
+
+                # Log SMS
+                LogSMS.objects.create(
+                    destinataire=demande.telephone_contact,
+                    message=message_sms,
+                    statut='envoye',
+                )
+            except Exception as e:
+                print(f"Erreur envoi SMS: {e}")
+
+        messages.success(
+            request,
+            f"✅ Demande #{demande.pk} livrée avec succès ! "
+            f"{nb_poches} poche(s) délivrée(s) à {demande.hopital}."
+        )
+
+        # Vérifier les alertes de stock après livraison
+        verifier_alertes_stock()
+
+        return redirect('demande_detail', pk=pk)
+
+    return redirect('demande_detail', pk=pk)
+
+
+# Dans views.py, ajoutez une vue filtrée pour le responsable
+
+@login_required
+@role_required('responsable', 'admin')
+def demandes_a_livrer(request):
+    """
+    Liste des demandes prêtes à être livrées
+    """
+    demandes = DemandeTransfusion.objects.filter(
+        statut_demande='preparee'
+    ).order_by('-date_traitement')
+
+    return render(request, 'blood_bank/demandes/a_livrer.html', {
+        'demandes': demandes,
+        'title': 'Demandes à livrer'
+    })
+
 # ============================================================
 # MESSAGES IEC / SMS
 # ============================================================
@@ -1291,44 +1415,163 @@ def examen_en_attente(request):
 # ============================================================
 # VISITEURS CNTS
 # ============================================================
-
-@login_required
-def visiteur_list(request):
-    visiteurs = VisiteurCNTS.objects.all().order_by('-date_visite')
-    return render(request, 'blood_bank/visiteurs/list.html', {
-        'visiteurs': visiteurs,
-    })
-
+# views.py
 
 @login_required
 def visiteur_create(request):
+    """
+    Enregistrement d'un visiteur (donneur familial) et prélèvement
+    """
     if request.method == 'POST':
-        nom = request.POST.get('nom_complet', '').strip()
+        # Récupérer les données du formulaire
+        nom_complet = request.POST.get('nom_complet', '').strip()
         telephone = request.POST.get('telephone', '').strip()
-        type_visite = request.POST.get('type_visite', 'rendu_poche')
         nom_patient = request.POST.get('nom_patient', '').strip()
-        nb_poches = int(request.POST.get('nombre_poches_rendues', 0) or 0)
-        notes = request.POST.get('notes', '').strip()
+        prenom_patient = request.POST.get('prenom_patient', '').strip()
+        telephone_patient = request.POST.get('telephone_patient', '').strip()
+        groupe_patient = request.POST.get('groupe_patient', '').strip()
+        hopital_patient = request.POST.get('hopital_patient', '').strip()
+        demande_id = request.POST.get('demande_associee', '')
 
-        if nom and telephone:
-            visiteur = VisiteurCNTS.objects.create(
-                nom_complet=nom,
-                telephone=telephone,
-                type_visite=type_visite,
-                nom_patient=nom_patient,
-                nombre_poches_rendues=nb_poches,
-                notes=notes,
-                enregistre_par=request.user,
-            )
-            messages.success(request, f"✅ Visiteur {nom} enregistré.")
-            return redirect('visiteur_list')
-        else:
-            messages.error(request, "Nom et téléphone obligatoires.")
+        if not nom_complet or not telephone or not nom_patient:
+            messages.error(request, "Les champs nom, téléphone et nom du patient sont obligatoires.")
+            return redirect('visiteur_create')
+
+        # Vérifier si une demande existe pour ce patient
+        demande = None
+        if demande_id:
+            try:
+                demande = DemandeTransfusion.objects.get(pk=demande_id)
+            except DemandeTransfusion.DoesNotExist:
+                pass
+
+        # Créer le visiteur
+        visiteur = VisiteurCNTS.objects.create(
+            nom_complet=nom_complet,
+            telephone=telephone,
+            type_visite='don_familial',
+            nom_patient=nom_patient,
+            prenom_patient=prenom_patient,
+            telephone_patient=telephone_patient,
+            groupe_patient=groupe_patient,
+            hopital_patient=hopital_patient,
+            demande_associee=demande,
+            enregistre_par=request.user,
+            statut_don='en_attente'
+        )
+
+        messages.success(
+            request,
+            f"✅ Visiteur {nom_complet} enregistré pour le patient {nom_patient}. "
+            f"Procédez maintenant au prélèvement."
+        )
+
+        # Rediriger vers la page de prélèvement
+        return redirect('visiteur_prelever', pk=visiteur.pk)
+
+    # GET : afficher le formulaire
+    demandes_en_attente = DemandeTransfusion.objects.filter(
+        statut_demande='en_attente'
+    ).order_by('-date_demande')
+
+    hopitaux = Hopital.objects.filter(actif=True)
 
     return render(request, 'blood_bank/visiteurs/form.html', {
-        'type_choices': VisiteurCNTS.TYPE_VISITE,
+        'demandes': demandes_en_attente,
+        'hopitaux': hopitaux,
+        'groupes': Donneur.GROUPE_CHOICES,
     })
 
+
+@login_required
+@role_required('infirmier', 'medecin', 'admin')
+def visiteur_prelever(request, pk):
+    """
+    Prélèvement du sang du visiteur
+    """
+    visiteur = get_object_or_404(VisiteurCNTS, pk=pk)
+
+    if visiteur.statut_don != 'en_attente':
+        messages.warning(request, "Ce don a déjà été prélevé.")
+        return redirect('visiteur_detail', pk=pk)
+
+    if request.method == 'POST':
+        # Créer la poche de sang
+        poche = visiteur.creer_poche_sang(request.user)
+
+        messages.success(
+            request,
+            f"🩸 Prélèvement effectué avec succès !\n"
+            f"Poche N°: {poche.code_barre}\n"
+            f"Patient: {visiteur.nom_patient}\n"
+            f"La poche est maintenant en cours d'analyse au laboratoire."
+        )
+
+        # Envoyer SMS au visiteur
+        try:
+            import africastalking
+            from django.conf import settings
+            africastalking.initialize(
+                settings.AFRICASTALKING_USERNAME,
+                settings.AFRICASTALKING_API_KEY
+            )
+            sms = africastalking.SMS
+            message = (
+                f"CNTS - Votre don pour {visiteur.nom_patient} a été prélevé.\n"
+                f"Code poche: {poche.code_barre}\n"
+                f"Les résultats seront disponibles dans 48h.\n"
+                f"Merci pour votre geste solidaire !"
+            )
+            sms.send(message, [visiteur.telephone])
+        except Exception as e:
+            print(f"Erreur envoi SMS: {e}")
+
+        return redirect('poche_analyser', pk=poche.pk)
+
+    return render(request, 'blood_bank/visiteurs/prelevement.html', {
+        'visiteur': visiteur,
+    })
+
+
+@login_required
+def visiteur_detail(request, pk):
+    """
+    Détail du visiteur et suivi de sa poche
+    """
+    visiteur = get_object_or_404(VisiteurCNTS, pk=pk)
+    poche = visiteur.poche_associee
+
+    return render(request, 'blood_bank/visiteurs/detail.html', {
+        'visiteur': visiteur,
+        'poche': poche,
+    })
+
+
+@login_required
+def visiteur_list(request):
+    """
+    Liste des visiteurs (donneurs familiaux)
+    """
+    statut = request.GET.get('statut', '')
+    q = request.GET.get('q', '')
+
+    visiteurs = VisiteurCNTS.objects.select_related('poche_associee', 'demande_associee')
+
+    if statut:
+        visiteurs = visiteurs.filter(statut_don=statut)
+    if q:
+        visiteurs = visiteurs.filter(
+            Q(nom_complet__icontains=q) |
+            Q(nom_patient__icontains=q) |
+            Q(telephone__icontains=q)
+        )
+
+    return render(request, 'blood_bank/visiteurs/list.html', {
+        'visiteurs': visiteurs,
+        'statut': statut,
+        'q': q,
+        'statuts': VisiteurCNTS.STATUT_DON,
+    })
 
 # ============================================================
 # CARTE DONNEUR AVEC PHOTO ET QR CODE - RÉSERVÉ AU DIRECTEUR

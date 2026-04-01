@@ -8,9 +8,11 @@
     <div class="page-title">Demandes de transfusion</div>
     <div class="page-subtitle">Gestion des besoins des établissements de santé</div>
   </div>
+  {% if user.role == 'prescripteur' %}
   <a href="{% url 'demande_create' %}" class="btn-blood">
     <i class="bi bi-plus-circle"></i> Nouvelle demande
   </a>
+  {% endif %}
 </div>
 
 <!-- Filtres rapides par statut -->
@@ -85,7 +87,9 @@
         <td colspan="10" style="text-align:center;padding:48px;color:var(--muted);">
           <div style="font-size:36px;margin-bottom:10px;">📋</div>
           Aucune demande enregistrée.
+          {% if user.role == 'prescripteur' %}
           <br><a href="{% url 'demande_create' %}" style="color:var(--crimson);">Créer la première demande</a>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}

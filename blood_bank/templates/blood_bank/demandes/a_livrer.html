@@ -1,0 +1,269 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Demandes à livrer - CNTS{% endblock %}
+{% block page_title %}Demandes prêtes à être livrées{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Livraison des demandes</div>
+    <div class="page-subtitle">Demandes préparées en attente de livraison</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'demande_list' %}" class="btn-outline">
+      <i class="bi bi-arrow-left"></i> Toutes les demandes
+    </a>
+  </div>
+</div>
+
+<!-- Statistiques rapides -->
+<div class="stats-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+  <div class="stat-card">
+    <div class="stat-value">{{ demandes.count }}</div>
+    <div class="stat-label">À livrer</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ total_poches }}</div>
+    <div class="stat-label">Poches à livrer</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ urgence_critique }}</div>
+    <div class="stat-label">Urgences critiques</div>
+  </div>
+</div>
+
+{% if demandes %}
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-truck"></i> Demandes préparées
+  </div>
+  <div class="card-body" style="padding:0;">
+    <table class="table-clean">
+      <thead>
+        <tr>
+          <th>N° Demande</th>
+          <th>Hôpital</th>
+          <th>Médecin</th>
+          <th>Patient</th>
+          <th>Produit</th>
+          <th>Groupe</th>
+          <th>Quantité</th>
+          <th>Urgence</th>
+          <th>Date préparation</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for demande in demandes %}
+        <tr>
+          <td>
+            <span class="mono" style="font-size:12px;font-weight:600;">#{{ demande.pk }}</span>
+          </td>
+          <td>
+            <div style="font-weight:500;">{{ demande.hopital }}</div>
+            <div style="font-size:11px;color:var(--muted);">{{ demande.medecin }}</div>
+          </td>
+          <td style="font-size:13px;">Dr. {{ demande.medecin }}</td>
+          <td style="font-size:12px;">{{ demande.patient_nom|default:"—" }}</td>
+          <td style="font-size:12px;">{{ demande.get_type_produit_display }}</td>
+          <td>
+            <span class="blood-badge blood-{{ demande.groupe_requis|first|lower }}">{{ demande.groupe_requis }}</span>
+          </td>
+          <td style="text-align:center;font-weight:600;">{{ demande.quantite }}</td>
+          <td>
+            <span class="urgence-{{ demande.urgence }}">
+              {% if demande.urgence == 'critique' %}🚨{% elif demande.urgence == 'urgent' %}⚡{% else %}📋{% endif %}
+              {{ demande.get_urgence_display }}
+            </span>
+          </td>
+          <td style="font-size:12px;color:var(--muted);">
+            {{ demande.date_traitement|date:"d/m/Y H:i"|default:"—" }}
+          </td>
+          <td>
+            <a href="{% url 'demande_detail' demande.pk %}" class="btn-sm-primary">
+              <i class="bi bi-box-arrow-right"></i> Livrer
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Affichage détaillé des poches par demande (optionnel) -->
+<div class="card mt-4">
+  <div class="card-header">
+    <i class="bi bi-droplet"></i> Détail des poches à livrer
+  </div>
+  <div class="card-body">
+    {% for demande in demandes %}
+    <div class="demande-group" style="margin-bottom:24px;border-bottom:1px solid #eee;padding-bottom:16px;">
+      <div class="demande-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div>
+          <strong style="font-size:16px;">Demande #{{ demande.pk }}</strong>
+          <span class="badge-status status-validee" style="margin-left:10px;">Préparée</span>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;">
+            {{ demande.hopital }} - Dr. {{ demande.medecin }}
+          </div>
+        </div>
+        <a href="{% url 'demande_detail' demande.pk %}" class="btn-sm-ghost">
+          <i class="bi bi-eye"></i> Voir détails
+        </a>
+      </div>
+
+      <table class="table table-sm" style="width:100%;background:#f9f9f9;border-radius:8px;">
+        <thead>
+          <tr style="background:#f0f0f0;">
+            <th>Code poche</th>
+            <th>Type</th>
+            <th>Groupe</th>
+            <th>Date prélèvement</th>
+            <th>Date expiration</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for poche in demande.poches_attribuees.all %}
+          <tr>
+            <td><code>{{ poche.code_barre }}</code></td>
+            <td>{{ poche.get_type_produit_display }}</td>
+            <td><span class="blood-badge blood-{{ poche.groupe_sanguin|first|lower }}">{{ poche.groupe_sanguin }}</span></td>
+            <td>{{ poche.date_prelevement|date:"d/m/Y" }}</td>
+            <td class="{% if poche.est_expiree %}text-danger{% endif %}">
+              {{ poche.date_expiration|date:"d/m/Y" }}
+              {% if poche.est_expiree %}
+              <span class="badge bg-danger">Expirée</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge-status status-validee">
+                {{ poche.get_statut_display }}
+              </span>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted">
+              Aucune poche attribuée
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="alert alert-info mt-2" style="font-size:13px;">
+        <i class="bi bi-info-circle"></i>
+        <strong>Contact médecin :</strong> {{ demande.telephone_contact|default:"Non renseigné" }}
+        {% if demande.telephone_contact %}
+        <button class="btn-sm-ghost" onclick="window.location.href='tel:{{ demande.telephone_contact }}'" style="margin-left:10px;">
+          <i class="bi bi-telephone"></i> Appeler
+        </button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center;padding:60px;">
+    <div style="font-size:48px;margin-bottom:20px;">🚚</div>
+    <h3 style="margin-bottom:10px;">Aucune demande à livrer</h3>
+    <p style="color:var(--muted);">
+      Toutes les demandes préparées ont été livrées.<br>
+      Les nouvelles demandes apparaîtront ici après validation.
+    </p>
+    <a href="{% url 'demande_list' %}" class="btn-blood mt-3">
+      <i class="bi bi-list"></i> Voir toutes les demandes
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border: 1px solid #e0e0e0;
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: bold;
+    color: var(--crimson);
+    margin-bottom: 5px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .btn-sm-primary {
+    background: var(--primary);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+  }
+
+  .btn-sm-primary:hover {
+    background: #0056b3;
+    color: white;
+    text-decoration: none;
+  }
+
+  .demande-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .table-sm td, .table-sm th {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .alert-info {
+    background: #e3f2fd;
+    border-left: 4px solid var(--info);
+    padding: 10px 15px;
+    border-radius: 6px;
+  }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--crimson);
+    color: var(--crimson);
+    padding: 8px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .btn-outline:hover {
+    background: var(--crimson);
+    color: white;
+    text-decoration: none;
+  }
+</style>
+{% endblock %}

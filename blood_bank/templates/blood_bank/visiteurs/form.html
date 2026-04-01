@@ -1,82 +1,141 @@
+<!-- templates/blood_bank/visiteurs/form.html -->
 {% extends 'blood_bank/base.html' %}
-{% block title %}Nouveau visiteur{% endblock %}
-{% block page_title %}Nouveau visiteur{% endblock %}
+{% block title %}Nouveau don familial - CNTS{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <div class="page-title">Enregistrer un visiteur</div>
-    <div class="page-subtitle">Personne venue rendre des poches ou retirer des résultats</div>
+    <div class="page-title">Don familial</div>
+    <div class="page-subtitle">Enregistrer un donneur familial et son patient</div>
   </div>
-  <a href="{% url 'visiteur_list' %}" class="btn-sm-ghost">
-    <i class="bi bi-arrow-left"></i> Retour
-  </a>
 </div>
 
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
-  <form method="post">
-    {% csrf_token %}
+<div class="row">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-person-plus"></i> Informations du donneur
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
 
-    <div class="card mb-4">
-      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
-        <i class="bi bi-person-fill"></i> Informations du visiteur
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div>
-          <label class="form-label">Nom complet *</label>
-          <input type="text" name="nom_complet" class="form-control"
-                 placeholder="Nom et prénom" required>
-        </div>
-        <div>
-          <label class="form-label">Téléphone *</label>
-          <input type="text" name="telephone" class="form-control"
-                 placeholder="+242 XX XXX XXXX" required>
-        </div>
-        <div>
-          <label class="form-label">Type de visite *</label>
-          <select name="type_visite" class="form-select">
-            {% for val, label in type_choices %}
-            <option value="{{ val }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="form-label">Nom du patient concerné</label>
-          <input type="text" name="nom_patient" class="form-control"
-                 placeholder="Si applicable">
-        </div>
-        <div>
-          <label class="form-label">Nombre de poches rendues</label>
-          <input type="number" name="nombre_poches_rendues" class="form-control"
-                 min="0" value="0">
-        </div>
-      </div>
-      <div style="margin-top:14px;">
-        <label class="form-label">Notes</label>
-        <textarea name="notes" class="form-control" rows="2"
-                  placeholder="Observations..."></textarea>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Nom complet du donneur *</label>
+              <input type="text" name="nom_complet" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Téléphone *</label>
+              <input type="tel" name="telephone" class="form-control" required>
+            </div>
+          </div>
+
+          <div class="card mt-4">
+            <div class="card-header bg-light">
+              <i class="bi bi-hospital"></i> Informations du patient
+            </div>
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">Nom du patient *</label>
+                  <input type="text" name="nom_patient" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Prénom du patient</label>
+                  <input type="text" name="prenom_patient" class="form-control">
+                </div>
+              </div>
+
+              <div class="row mb-3">
+                <div class="col-md-4">
+                  <label class="form-label">Groupe sanguin</label>
+                  <select name="groupe_patient" class="form-select">
+                    <option value="">Non déterminé</option>
+                    {% for g in groupes %}
+                    <option value="{{ g.0 }}">{{ g.0 }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Téléphone patient</label>
+                  <input type="tel" name="telephone_patient" class="form-control">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Hôpital</label>
+                  <select name="hopital_patient" class="form-select">
+                    <option value="">Sélectionner un hôpital</option>
+                    {% for hopital in hopitaux %}
+                    <option value="{{ hopital.nom }}">{{ hopital.nom }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Demande de transfusion associée (optionnel)</label>
+                <select name="demande_associee" class="form-select">
+                  <option value="">Aucune demande spécifique</option>
+                  {% for demande in demandes %}
+                  <option value="{{ demande.pk }}">
+                    #{{ demande.pk }} - {{ demande.hopital }} - {{ demande.groupe_requis }} - {{ demande.quantite }} poche(s)
+                  </option>
+                  {% endfor %}
+                </select>
+                <small class="form-text text-muted">
+                  Si le patient a déjà une demande, sélectionnez-la pour lier le don à la demande.
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-info mt-3">
+            <i class="bi bi-info-circle"></i>
+            <strong>Prochaines étapes :</strong>
+            <ol class="mb-0 mt-2">
+              <li>Le donneur sera prélevé immédiatement après l'enregistrement</li>
+              <li>La poche sera envoyée au laboratoire pour analyse</li>
+              <li>Une fois validée, elle sera disponible pour le patient</li>
+              <li>Le médecin pourra voir la poche dans le système</li>
+            </ol>
+          </div>
+
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-save"></i> Enregistrer et procéder au prélèvement
+            </button>
+            <a href="{% url 'visiteur_list' %}" class="btn btn-secondary">Annuler</a>
+          </div>
+        </form>
       </div>
     </div>
+  </div>
 
-    <div style="display:flex;gap:10px;">
-      <button type="submit" class="btn-blood">
-        <i class="bi bi-check-circle"></i> Enregistrer
-      </button>
-      <a href="{% url 'visiteur_list' %}" class="btn-sm-ghost">Annuler</a>
-    </div>
-  </form>
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-question-circle"></i> À propos du don familial
+      </div>
+      <div class="card-body">
+        <p>Le <strong>don familial</strong> permet à un proche du patient de donner son sang pour compenser la poche utilisée.</p>
 
-  <div class="card" style="background:rgba(192,21,42,0.02);">
-    <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--crimson);">
-      ℹ️ Pourquoi enregistrer les visiteurs ?
+        <h6>Conditions d'éligibilité :</h6>
+        <ul>
+          <li>Âge entre 18 et 65 ans</li>
+          <li>Poids ≥ 50 kg</li>
+          <li>Bonne santé générale</li>
+          <li>Pas de don dans les 56 derniers jours</li>
+        </ul>
+
+        <h6>Processus :</h6>
+        <ul>
+          <li>✅ Enregistrement du donneur</li>
+          <li>🩸 Prélèvement (450 ml)</li>
+          <li>🔬 Analyses de laboratoire</li>
+          <li>💉 Délivrance au patient</li>
+        </ul>
+      </div>
     </div>
-    <p style="font-size:12px;color:var(--muted);line-height:1.7;">
-      Au CNTS, certaines personnes viennent <strong>rendre des poches</strong>
-      transfusées à leur proche — c'est une obligation pour compenser le stock.
-      D'autres viennent simplement <strong>retirer des résultats</strong>.
-      Cette traçabilité est importante pour la gestion du stock et
-      la <strong>fidélisation future</strong> comme donneurs.
-    </p>
   </div>
 </div>
 {% endblock %}

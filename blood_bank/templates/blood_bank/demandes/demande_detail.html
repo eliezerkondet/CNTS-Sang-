@@ -1,0 +1,102 @@
+<!-- Section pour le Responsable de délivrance -->
+{% if demande.statut_demande == 'preparee' and user.role == 'responsable' %}
+<div class="card mt-4" style="border-left: 4px solid var(--success);">
+    <div class="card-header" style="background:var(--success);color:white;">
+        <i class="bi bi-truck"></i> Livraison - Responsable de délivrance
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            <strong>Informations de livraison :</strong><br>
+            • Hôpital : {{ demande.hopital }}<br>
+            • Médecin : Dr. {{ demande.medecin }}<br>
+            • Contact : {{ demande.telephone_contact|default:"Non renseigné" }}<br>
+            • Produit : {{ demande.get_type_produit_display }}<br>
+            • Groupe : {{ demande.groupe_requis }}<br>
+            • Quantité : {{ demande.poches_attribuees.count }} poche(s)
+        </div>
+
+        <form method="post" action="{% url 'demande_livrer' demande.pk %}">
+            {% csrf_token %}
+
+            <div class="form-group mb-3">
+                <label for="notes_livraison">Notes de livraison (optionnel) :</label>
+                <textarea id="notes_livraison" name="notes_livraison"
+                          class="form-control" rows="2"
+                          placeholder="Ajouter des informations supplémentaires..."></textarea>
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="confirm_livraison" required>
+                <label class="form-check-label" for="confirm_livraison">
+                    Je confirme que les poches de sang listées ci-dessous sont livrées à l'hôpital {{ demande.hopital }}
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-success btn-lg"
+                    onclick="return confirm('⚠️ Confirmez-vous la livraison ?\n\nCette action va :\n- Marquer les poches comme utilisées\n- Réduire le stock disponible\n- Envoyer un SMS au médecin\n\nCliquez sur OK pour confirmer la livraison.');">
+                <i class="bi bi-check-circle"></i> Livrer Ok
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Liste des poches à livrer -->
+<div class="card mt-3">
+    <div class="card-header">
+        <i class="bi bi-droplet"></i> Poches attribuées à livrer
+    </div>
+    <div class="card-body">
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Code barre</th>
+                    <th>Type</th>
+                    <th>Groupe</th>
+                    <th>Date prélèvement</th>
+                    <th>Date expiration</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for poche in demande.poches_attribuees.all %}
+                <tr>
+                    <td><code>{{ poche.code_barre }}</code></td>
+                    <td>{{ poche.get_type_produit_display }}</td>
+                    <td><span class="blood-badge">{{ poche.groupe_sanguin }}</span></td>
+                    <td>{{ poche.date_prelevement|date:"d/m/Y" }}</td>
+                    <td class="{% if poche.est_expiree %}text-danger{% endif %}">
+                        {{ poche.date_expiration|date:"d/m/Y" }}
+                        {% if poche.est_expiree %}
+                        <span class="badge bg-danger">Expirée</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Aucune poche attribuée
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if demande.statut_demande == 'livree' %}
+<div class="alert alert-success mt-4">
+    <i class="bi bi-check-circle-fill"></i>
+    <strong>✅ Demande livrée avec succès !</strong><br>
+    <div class="mt-2">
+        <strong>Détails de la livraison :</strong><br>
+        • Livré par : <strong>{{ demande.livre_par.get_full_name }}</strong> ({{ demande.livre_par.get_role_display }})<br>
+        • Date de livraison : {{ demande.date_livraison|date:"d/m/Y à H:i" }}<br>
+        • Hôpital : {{ demande.hopital }}<br>
+        • Médecin : Dr. {{ demande.medecin }}<br>
+        {% if demande.notes_livraison %}
+        • Notes : {{ demande.notes_livraison }}<br>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

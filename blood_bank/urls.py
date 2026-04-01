@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views
-
+from .views import (
+    visiteur_list, visiteur_create, visiteur_detail, visiteur_prelever, demandes_a_livrer, demande_livrer
+)
 urlpatterns = [
     # Authentification
     path('', views.login_view, name='login'),
@@ -33,6 +35,8 @@ urlpatterns = [
     path('demandes/<int:pk>/', views.demande_detail, name='demande_detail'),
     path('demandes/<int:pk>/traiter/', views.demande_traiter, name='demande_traiter'),
     path('demandes/<int:pk>/prix-solidaire/', views.approuver_prix_solidaire, name='approuver_prix_solidaire'),
+    path('demandes/a-livrer/', demandes_a_livrer, name='demandes_a_livrer'),
+    path('demande/<int:pk>/livrer/', demande_livrer, name='demande_livrer'),
 
     # Messages IEC / SMS
     path('messages/', views.message_list, name='message_list'),
@@ -69,9 +73,10 @@ urlpatterns = [
     path('hopitaux/nouveau/', views.hopital_create, name='hopital_create'),
 
     # Visiteurs CNTS
-    path('visiteurs/', views.visiteur_list, name='visiteur_list'),
-    path('visiteurs/nouveau/', views.visiteur_create, name='visiteur_create'),
-
+    path('visiteurs/', visiteur_list, name='visiteur_list'),
+    path('visiteurs/creer/', visiteur_create, name='visiteur_create'),
+    path('visiteurs/<int:pk>/', visiteur_detail, name='visiteur_detail'),
+    path('visiteurs/<int:pk>/prelever/', visiteur_prelever, name='visiteur_prelever'),
     # Accueil candidats
     path('accueil/', views.accueil_candidat, name='accueil_candidat'),
 

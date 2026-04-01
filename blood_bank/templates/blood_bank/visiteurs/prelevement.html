@@ -1,0 +1,111 @@
+<!-- templates/blood_bank/visiteurs/prelevement.html -->
+{% extends 'blood_bank/base.html' %}
+{% block title %}Prélèvement - Don familial{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Prélèvement du donneur familial</div>
+    <div class="page-subtitle">Don pour le patient: {{ visiteur.nom_patient }}</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header bg-success text-white">
+        <i class="bi bi-droplet"></i> Confirmation du prélèvement
+      </div>
+      <div class="card-body">
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle"></i>
+          <strong>Vérification avant prélèvement :</strong>
+        </div>
+
+        <table class="table">
+          <tr>
+            <th>Donneur :</th>
+            <td>{{ visiteur.nom_complet }}</td>
+          </tr>
+          <tr>
+            <th>Téléphone :</th>
+            <td>{{ visiteur.telephone }}</td>
+          </tr>
+          <tr>
+            <th>Patient :</th>
+            <td>{{ visiteur.nom_patient }} {{ visiteur.prenom_patient }}</td>
+          </tr>
+          <tr>
+            <th>Hôpital :</th>
+            <td>{{ visiteur.hopital_patient|default:"Non spécifié" }}</td>
+          </tr>
+          <tr>
+            <th>Groupe requis :</th>
+            <td>{{ visiteur.groupe_patient|default:"À déterminer" }}</td>
+          </tr>
+        </table>
+
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="confirm_identite" required>
+            <label class="form-check-label" for="confirm_identite">
+              Je confirme l'identité du donneur
+            </label>
+          </div>
+
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="confirm_consentement" required>
+            <label class="form-check-label" for="confirm_consentement">
+              Le donneur a donné son consentement éclairé
+            </label>
+          </div>
+
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="confirm_condition" required>
+            <label class="form-check-label" for="confirm_condition">
+              Le donneur remplit les conditions (poids, santé, âge)
+            </label>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Observations du prélèvement</label>
+            <textarea name="notes" class="form-control" rows="3"
+                      placeholder="Poche, volume, complications éventuelles..."></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-success btn-lg w-100"
+                  onclick="return confirm('Confirmer le prélèvement ? La poche sera envoyée au laboratoire pour analyse.');">
+            <i class="bi bi-check-circle"></i> Confirmer le prélèvement
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-list-check"></i> Protocole de prélèvement
+      </div>
+      <div class="card-body">
+        <ol>
+          <li>Vérifier l'identité du donneur</li>
+          <li>Vérifier les critères d'éligibilité</li>
+          <li>Obtenir le consentement éclairé</li>
+          <li>Nettoyer le site de ponction</li>
+          <li>Effectuer le prélèvement (450 ml)</li>
+          <li>Étiqueter la poche</li>
+          <li>Envoyer au laboratoire</li>
+        </ol>
+
+        <div class="alert alert-info mt-3">
+          <i class="bi bi-clock"></i>
+          <strong>Durée :</strong> 15-20 minutes
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
