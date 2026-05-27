@@ -82,31 +82,31 @@
         </div>
       </div>
 
-      <!-- Champs cachés géolocalisation -->
+      <!-- Champs cachés géolocalisation (utilisés par le widget) -->
       {{ form.latitude }}
       {{ form.longitude }}
+      
+      <!-- Inclusion du widget géolocalisation -->
+      {% include 'blood_bank/includes/geo_widget.html' %}
 
-      <div style="display:flex;gap:10px;">
+      <div style="display:flex;gap:10px;margin-top:20px;">
         <button type="submit" class="btn-blood"><i class="bi bi-check-circle"></i> Enregistrer</button>
         <a href="{% url 'donneur_list' %}" class="btn-sm-ghost">Annuler</a>
       </div>
+
     </form>
   </div>
 
-  <!-- Panneau géolocalisation -->
+  <!-- Panneau latéral (sans la carte en double) -->
   <div>
     <div class="card">
       <div style="font-size:14px;font-weight:700;margin-bottom:12px;">
         <i class="bi bi-geo-alt-fill" style="color:var(--crimson);"></i> Géolocalisation
       </div>
       <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
-        Cliquez sur la carte ou utilisez votre position pour localiser le donneur.
+        Utilisez la carte ci‑dessus pour localiser le donneur.
       </p>
-      <div id="map" style="height:250px;border-radius:10px;overflow:hidden;"></div>
-      <button type="button" class="btn-outline-blood w-100 mt-3" id="geoBtn" onclick="locateMe()">
-        <i class="bi bi-crosshair"></i> Ma position
-      </button>
-      <div id="geoInfo" style="margin-top:8px;font-size:11px;color:var(--muted);text-align:center;"></div>
+      <div id="infoGeo" style="margin-top:8px;font-size:11px;color:var(--muted);text-align:center;"></div>
     </div>
 
     <div class="card mt-4">
@@ -117,50 +117,4 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-const map = L.map('map').setView([-4.2634, 15.2429], 12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-let marker = null;
-
-{% if donneur and donneur.latitude %}
-  marker = L.marker([{{ donneur.latitude }}, {{ donneur.longitude }}]).addTo(map);
-  map.setView([{{ donneur.latitude }}, {{ donneur.longitude }}], 14);
-{% endif %}
-
-map.on('click', function(e) {
-  setLocation(e.latlng.lat, e.latlng.lng);
-});
-
-function setLocation(lat, lng) {
-  if (marker) map.removeLayer(marker);
-  marker = L.marker([lat, lng]).addTo(map);
-  document.querySelector('[name="latitude"]').value = lat.toFixed(6);
-  document.querySelector('[name="longitude"]').value = lng.toFixed(6);
-  document.getElementById('geoInfo').textContent = `Position: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-}
-
-function locateMe() {
-  const btn = document.getElementById('geoBtn');
-  btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Localisation...';
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        setLocation(pos.coords.latitude, pos.coords.longitude);
-        map.setView([pos.coords.latitude, pos.coords.longitude], 15);
-        btn.innerHTML = '<i class="bi bi-check"></i> Localisé!';
-      },
-      err => {
-        btn.innerHTML = '<i class="bi bi-crosshair"></i> Ma position';
-        alert('Erreur de géolocalisation: ' + err.message);
-      }
-    );
-  }
-}
-</script>
-{% endblock %}
+{% endblock %} 

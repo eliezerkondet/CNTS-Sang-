@@ -1,199 +1,138 @@
 {% extends 'blood_bank/base.html' %}
-{% block title %}Statistiques - CNTS{% endblock %}
-{% block page_title %}Statistiques & Rapports{% endblock %}
+{% block title %}Statistiques — CNTS{% endblock %}
+{% block page_title %}Statistiques{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <div class="page-title">Statistiques globales</div>
-    <div class="page-subtitle">Rapport d'activité · Centre National de Transfusion Sanguine</div>
+    <div class="page-title">Statistiques de la Banque de Sang</div>
+    <div class="page-subtitle">CNTS Brazzaville — Tableau de bord analytique</div>
   </div>
+  {% if user.role in 'directeur,gestionnaire' %}
+  <form method="post" action="{% url 'lancer_prediction_ia' %}">
+    {% csrf_token %}
+    <button type="submit" style="background:linear-gradient(135deg,#1A5C8B,#0D3557);
+            color:white;border:none;border-radius:10px;padding:10px 18px;
+            font-size:13px;font-weight:700;cursor:pointer;
+            display:flex;align-items:center;gap:8px;">
+      🤖 Lancer prédiction IA J+3
+    </button>
+  </form>
+  {% endif %}
 </div>
 
-<!-- KPIs -->
+<!-- KPI 1 — POCHES -->
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
-  <div class="stat-card stat-crimson">
-    <div class="stat-icon"><i class="bi bi-person-heart"></i></div>
-    <div class="stat-value">{{ total_donneurs }}</div>
-    <div class="stat-label">Donneurs actifs</div>
+  <div class="card" style="text-align:center;border-top:3px solid var(--crimson);">
+    <div style="font-size:36px;font-weight:900;color:var(--crimson);">{{ stats.total_poches }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Poches collectées (total)</div>
+    <div style="font-size:11px;color:var(--success);margin-top:2px;">↑ {{ stats.poches_ce_mois }} ce mois</div>
   </div>
-  <div class="stat-card stat-gold">
-    <div class="stat-icon"><i class="bi bi-droplet-half"></i></div>
-    <div class="stat-value">{{ total_poches }}</div>
-    <div class="stat-label">Poches collectées</div>
+  <div class="card" style="text-align:center;border-top:3px solid #1A5C8B;">
+    <div style="font-size:36px;font-weight:900;color:#1A5C8B;">{{ stats.total_demandes }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Demandes reçues</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px;">{{ stats.demandes_en_attente }} en attente</div>
   </div>
-  <div class="stat-card stat-success">
-    <div class="stat-icon"><i class="bi bi-file-medical"></i></div>
-    <div class="stat-value">{{ total_demandes }}</div>
-    <div class="stat-label">Demandes traitées</div>
+  <div class="card" style="text-align:center;border-top:3px solid var(--success);">
+    <div style="font-size:36px;font-weight:900;color:var(--success);">{{ stats.taux_satisfaction }}%</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Taux de satisfaction</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px;">{{ stats.demandes_livrees }} demandes satisfaites</div>
   </div>
-  <div class="stat-card stat-info">
-    <div class="stat-icon"><i class="bi bi-chat-dots"></i></div>
-    <div class="stat-value">{{ total_sms }}</div>
-    <div class="stat-label">SMS envoyés</div>
+  <div class="card" style="text-align:center;border-top:3px solid var(--gold);">
+    <div style="font-size:36px;font-weight:900;color:var(--gold);">{{ stats.total_donneurs }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Donneurs</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px;">↑ {{ stats.nouveaux_donneurs }} ce mois</div>
   </div>
 </div>
 
-<!-- GRAPHIQUES INTERACTIFS -->
-<div style="display:grid;grid-template-columns:1.5fr 1fr;gap:20px;margin-bottom:24px;">
-  <!-- Évolution des dons interactive -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+
+  <!-- GROUPES LES PLUS DEMANDÉS -->
   <div class="card">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-      <div style="font-size:15px;font-weight:700;">📈 Évolution des dons</div>
-      <div style="width:150px;">
-        <select id="periode" class="form-select form-select-sm">
-          <option value="semaine">Cette semaine</option>
-          <option value="mois" selected>Ce mois</option>
-          <option value="annee">Cette année</option>
-        </select>
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+      🩸 Groupes sanguins les plus demandés
+    </div>
+    {% for g in stats.groupes_demandes %}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <div style="width:36px;height:36px;border-radius:50%;
+           background:rgba(192,21,42,0.1);display:flex;align-items:center;
+           justify-content:center;font-weight:800;font-size:11px;color:var(--crimson);">
+        {{ g.groupe }}
       </div>
-    </div>
-    <div style="position: relative; height:250px;">
-      <canvas id="chartDons"></canvas>
-    </div>
-  </div>
-
-  <!-- Répartition par groupe -->
-  <div class="card">
-    <div style="font-size:15px;font-weight:700;margin-bottom:16px;">🩸 Répartition par groupe sanguin</div>
-    <div style="position: relative; height:250px;">
-      <canvas id="groupesChart"></canvas>
-    </div>
-  </div>
-</div>
-
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-  <!-- Types de donneurs -->
-  <div class="card">
-    <div style="font-size:15px;font-weight:700;margin-bottom:16px;">👥 Types de donneurs</div>
-    {% for t in types_donneurs %}
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
-      <span style="font-size:13px;">
-        {% if t.type_donneur == 'benevole' %}🤝 Bénévole{% elif t.type_donneur == 'familial' %}👨‍👩‍👧 Familial{% else %}💰 Rémunéré{% endif %}
-      </span>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
-          <div style="height:100%;background:var(--crimson);border-radius:3px;width:{% widthratio t.count total_donneurs 100 %}%;"></div>
+      <div style="flex:1;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="font-size:12px;font-weight:600;">{{ g.groupe }}</span>
+          <span style="font-size:12px;color:var(--muted);">{{ g.total }} demandes ({{ g.pourcentage }}%)</span>
         </div>
-        <span style="font-weight:700;font-size:13px;">{{ t.count }}</span>
+        <div style="background:var(--border);border-radius:4px;height:6px;">
+          <div style="width:{{ g.pourcentage }}%;height:100%;background:var(--crimson);border-radius:4px;"></div>
+        </div>
       </div>
     </div>
-    {% empty %}
-    <div style="color:var(--muted);font-size:13px;">Aucune donnée</div>
     {% endfor %}
   </div>
 
-  <!-- Statuts demandes -->
+  <!-- STOCK PAR GROUPE -->
   <div class="card">
-    <div style="font-size:15px;font-weight:700;margin-bottom:16px;">📋 Statuts des demandes</div>
-    {% for d in demandes_statut %}
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
-      <span class="badge-status
-        {% if d.statut_demande == 'livree' %}status-livree
-        {% elif d.statut_demande == 'en_attente' %}status-en_attente
-        {% elif d.statut_demande == 'validee' or d.statut_demande == 'preparee' %}status-validee
-        {% else %}status-rejetee{% endif %}">
-        {{ d.statut_demande }}
-      </span>
-      <span style="font-weight:700;font-size:13px;">{{ d.count }}</span>
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+      📦 Stock disponible par groupe sanguin
     </div>
-    {% empty %}
-    <div style="color:var(--muted);font-size:13px;">Aucune donnée</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      {% for s in stats.stock_par_groupe %}
+      <div style="padding:10px;border-radius:8px;text-align:center;
+           background:{% if s.total == 0 %}rgba(192,21,42,0.08){% elif s.total < 5 %}rgba(201,168,76,0.08){% else %}rgba(26,122,74,0.08){% endif %};
+           border:1px solid {% if s.total == 0 %}rgba(192,21,42,0.3){% elif s.total < 5 %}rgba(201,168,76,0.3){% else %}rgba(26,122,74,0.3){% endif %};">
+        <div style="font-size:18px;font-weight:900;
+             color:{% if s.total == 0 %}var(--crimson){% elif s.total < 5 %}var(--gold){% else %}var(--success){% endif %};">
+          {{ s.total }}
+        </div>
+        <div style="font-size:11px;font-weight:700;">{{ s.groupe }}</div>
+        {% if s.total == 0 %}<div style="font-size:9px;color:var(--crimson);font-weight:700;">RUPTURE</div>
+        {% elif s.total < 5 %}<div style="font-size:9px;color:var(--gold);font-weight:700;">CRITIQUE</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<!-- STOCK PAR TYPE DE PRODUIT -->
+<div class="card mb-4">
+  <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+    🧪 Stock par type de produit sanguin
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+    {% for code, info in stats.stock_par_type.items %}
+    <div style="text-align:center;padding:14px;background:var(--warm-white);
+         border-radius:10px;border-bottom:3px solid var(--crimson);">
+      <div style="font-size:28px;font-weight:900;color:var(--crimson);">{{ info.total }}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">{{ info.label }}</div>
+    </div>
     {% endfor %}
   </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-// --- INITIALISATION DES GRAPHIQUES ---
-const ctxDons = document.getElementById('chartDons').getContext('2d');
-let chartDons;
+<!-- ALERTES STOCK -->
+{% if alertes_stock %}
+<div class="card" style="border-left:4px solid var(--gold);">
+  <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--gold);">
+    ⚠️ Alertes stock actives
+  </div>
+  {% for a in alertes_stock %}
+  <div style="display:flex;justify-content:space-between;align-items:center;
+       padding:8px 10px;background:rgba(201,168,76,0.06);
+       border-radius:8px;margin-bottom:6px;font-size:12px;">
+    <div>
+      <strong>{{ a.groupe_sanguin }}</strong> —
+      {{ a.message|truncatechars:80 }}
+    </div>
+    <a href="{% url 'resoudre_alerte' a.pk %}"
+       style="font-size:11px;color:var(--crimson);white-space:nowrap;margin-left:10px;">
+      Résoudre
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
-// Données initiales (passées par Django)
-const initialDonsData = {{ dons_par_mois|safe }};
-
-function initDonsChart(labels, data) {
-    chartDons = new Chart(ctxDons, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Nombre de dons',
-                data: data,
-                borderColor: '#C0152A',
-                backgroundColor: 'rgba(192,21,42,0.08)',
-                tension: 0.4,
-                fill: true,
-                pointBackgroundColor: '#C0152A',
-                pointRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } },
-                x: { grid: { display: false } }
-            }
-        }
-    });
-}
-
-// Initialisation au chargement
-initDonsChart(
-    initialDonsData.map(d => d.mois || d.jour),
-    initialDonsData.map(d => d.count)
-);
-
-// --- LOGIQUE DE MISE À JOUR (FETCH) ---
-document.getElementById('periode').addEventListener('change', function() {
-    const periode = this.value;
-
-    // Appel API pour récupérer les nouvelles données
-    fetch(`/api/statistiques/dons_par_periode/?periode=${periode}`)
-        .then(response => response.json())
-        .then(data => {
-            // Mettre à jour les labels et les données
-            chartDons.data.labels = data.labels;
-            chartDons.data.datasets[0].data = data.values;
-            chartDons.update();
-        })
-        .catch(err => console.error("Erreur lors de la mise à jour des stats:", err));
-});
-
-// --- GRAPHIQUE DES GROUPES (Doughnut) ---
-const groupes = {{ repartition_groupes|safe }};
-const groupColors = {
-    'O+': '#C0152A', 'O-': '#8B0D1D',
-    'A+': '#1A5C8B', 'A-': '#2E86AB',
-    'B+': '#1A7A4A', 'B-': '#2ECC71',
-    'AB+': '#C9A84C', 'AB-': '#E67E22',
-};
-
-new Chart(document.getElementById('groupesChart'), {
-    type: 'doughnut',
-    data: {
-        labels: groupes.map(g => g.groupe),
-        datasets: [{
-            data: groupes.map(g => g.count),
-            backgroundColor: groupes.map(g => groupColors[g.groupe] || '#ccc'),
-            borderWidth: 2,
-            borderColor: 'white',
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'right',
-                labels: { font: { family: 'Sora', size: 11 }, usePointStyle: true }
-            }
-        }
-    }
-});
-</script>
 {% endblock %}

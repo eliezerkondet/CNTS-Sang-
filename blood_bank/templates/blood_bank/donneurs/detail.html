@@ -112,7 +112,7 @@
         {% endif %}
       </div>
 
-      <!-- Dernier Examen Médical -->
+      <!-- Examen médical -->
       <div class="card">
         <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Examen médical</div>
         {% if examen %}
@@ -135,6 +135,26 @@
         {% endif %}
       </div>
     </div>
+
+    <!-- ===== NOUVEAU : CARTE DE SUSPENSION POUR PALUDISME ===== -->
+    {% if donneur.date_suspension_paludisme and not donneur.actif %}
+    <div class="card mt-3">
+        <div class="card-header bg-warning">
+            <i class="bi bi-exclamation-triangle"></i> Suspension pour paludisme
+        </div>
+        <div class="card-body">
+            <p>Ce donneur a été suspendu le {{ donneur.date_suspension_paludisme|date:"d/m/Y" }}.
+            Il pourra redonner à partir du {{ donneur.date_retour_autorise|date:"d/m/Y" }}.</p>
+            {% if user.role == 'medecin' or user.role == 'directeur' %}
+            <form method="post" action="{% url 'readmettre_donneur' donneur.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">✅ Réadmettre après guérison</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    <!-- ====================================================== -->
 
     <!-- Carte Donneur (Si émise) -->
     {% if carte %}
@@ -185,25 +205,25 @@
           <tbody>
             {% for poche in poches %}
             <tr>
-              <td><span class="mono" style="font-size:11px; background:var(--warm-white); padding:2px 5px; border-radius:4px;">{{ poche.code_barre }}</span></td>
+              <td><span class="mono" style="font-size:11px; background:var(--warm-white); padding:2px 5px; border-radius:4px;">{{ poche.code_barre }}</span></span></td>
               <td style="font-size:12px;">{{ poche.get_type_produit_display }}</td>
               <td style="font-size:12px;">{{ poche.date_prelevement|date:"d/m/Y" }}</td>
               <td>
                 <span class="badge-status {% if poche.statut == 'disponible' %}status-disponible{% elif poche.statut == 'rejetee' %}status-critique{% elif poche.statut == 'attribuee' %}status-en_attente{% else %}status-livree{% endif %}">
                     {{ poche.get_statut_display }}
                 </span>
-              </td>
+               </td>
               <td style="text-align:right;">
                 <a href="{% url 'poche_detail' poche.pk %}" class="btn-sm-ghost"><i class="bi bi-eye"></i></a>
-              </td>
-            </tr>
+               </td>
+             </tr>
             {% empty %}
-            <tr>
+             <tr>
               <td colspan="5" style="text-align:center; padding:30px; color:var(--muted); font-size:13px;">
                 <i class="bi bi-droplet" style="font-size:24px; display:block; margin-bottom:10px;"></i>
                 Aucun don enregistré pour ce profil.
               </td>
-            </tr>
+             </tr>
             {% endfor %}
           </tbody>
         </table>
@@ -212,4 +232,4 @@
 
   </div>
 </div>
-{% endblock %}
+{% endblock %} 

@@ -1,176 +1,384 @@
-{% extends 'blood_bank/base.html' %}
-
-{% block auth_content %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CNTS Brazzaville — Connexion</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet"/>
+</head>
+<body>
 <style>
-  .login-wrap {
-    min-height: 100vh;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+  body {
+    font-family: 'Sora', sans-serif !important;
+    height: 100vh !important;
+    display: grid !important;
+    grid-template-columns: 3fr 2fr !important;
+    overflow: hidden !important;
+    background: #0D0D0D !important;
+    color: white !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-
-  .login-left {
-    background: #1A1A1A;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 60px;
-    position: relative; overflow: hidden;
-  }
-
-  .login-left::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 30% 70%, rgba(192,21,42,0.3), transparent 60%),
-                radial-gradient(ellipse at 80% 20%, rgba(192,21,42,0.15), transparent 50%);
-  }
-
-  .blood-drops {
-    position: absolute; inset: 0; overflow: hidden;
-  }
-
-  .drop {
-    position: absolute; font-size: 40px;
-    opacity: 0.08; animation: fall linear infinite;
-  }
-
-  @keyframes fall {
-    from { transform: translateY(-50px) rotate(0deg); opacity: 0.08; }
-    to { transform: translateY(110vh) rotate(360deg); opacity: 0; }
-  }
-
-  .login-logo {
-    position: relative; z-index: 1; text-align: center;
-  }
-
-  .logo-circle {
-    width: 96px; height: 96px;
-    background: var(--crimson);
-    border-radius: 28px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 48px; margin: 0 auto 24px;
-    box-shadow: 0 20px 60px rgba(192,21,42,0.4);
-  }
-
-  .logo-title {
-    font-size: 28px; font-weight: 800; color: white;
-    line-height: 1.2; margin-bottom: 8px;
-  }
-
-  .logo-sub {
-    font-size: 13px; color: rgba(255,255,255,0.4);
-    font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 2px; text-transform: uppercase;
-  }
-
-  .login-stats {
-    position: relative; z-index: 1;
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 12px; margin-top: 48px; width: 100%;
-  }
-
-  .login-stat {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px; padding: 16px;
-    text-align: center;
-  }
-
-  .login-stat .val { font-size: 24px; font-weight: 800; color: var(--crimson); }
-  .login-stat .lbl { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
-
-  .login-right {
-    display: flex; align-items: center; justify-content: center;
-    background: var(--warm-white);
-    padding: 60px;
-  }
-
-  .login-form-wrap {
-    width: 100%; max-width: 380px;
-  }
-
-  .login-heading {
-    font-size: 26px; font-weight: 800;
-    color: var(--charcoal); margin-bottom: 6px;
-  }
-
-  .login-tagline {
-    font-size: 13px; color: var(--muted); margin-bottom: 36px;
-  }
-
-  @media (max-width: 768px) {
-    .login-wrap { grid-template-columns: 1fr; }
-    .login-left { display: none; }
-    .login-right { padding: 40px 24px; }
-  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  .left-panel{background:#0D0D0D;position:relative;display:flex;flex-direction:column;overflow:hidden;height:100vh;}
+  .bg-pattern{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0;}
+  .cross-grid{position:absolute;inset:-20px;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(10,1fr);gap:0;opacity:0.07;}
+  .cross-item{display:flex;align-items:center;justify-content:center;font-size:22px;color:white;font-weight:900;}
+  .oms-logo{position:absolute;font-size:48px;opacity:0.05;color:white;}
+  .bg-glow{position:absolute;width:500px;height:500px;background:radial-gradient(circle,rgba(192,21,42,0.35) 0%,transparent 70%);border-radius:50%;top:-100px;left:-100px;pointer-events:none;}
+  .bg-glow-2{position:absolute;width:300px;height:300px;background:radial-gradient(circle,rgba(192,21,42,0.2) 0%,transparent 70%);border-radius:50%;bottom:100px;right:-50px;pointer-events:none;}
+  .blood-drops{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1;}
+  .drop{position:absolute;font-size:36px;opacity:0.45;animation:fall linear infinite;}
+  @keyframes fall{from{transform:translateY(-60px) rotate(0deg);opacity:0.45;}to{transform:translateY(110vh) rotate(360deg);opacity:0.05;}}
+  .public-nav{position:relative;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:14px 28px;border-bottom:1px solid rgba(255,255,255,0.06);}
+  .nav-brand{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;color:white;}
+  .nav-brand .dot{color:#C0152A;}
+  .nav-links{display:flex;gap:20px;font-size:12px;}
+  .nav-links a{color:rgba(255,255,255,0.5);text-decoration:none;transition:color 0.2s;}
+  .nav-links a:hover{color:#C0152A;}
+  .hero-section{position:relative;z-index:10;padding:20px 36px 12px;flex-shrink:0;}
+  .slogan{font-size:28px;font-weight:900;color:white;line-height:1.1;letter-spacing:-0.5px;text-transform:uppercase;margin-bottom:14px;}
+  .slogan span{color:#C0152A;}
+  .hero-icons{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+  .cross-pin{width:34px;height:34px;background:rgba(255,255,255,0.1);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:white;border:1px solid rgba(255,255,255,0.2);}
+  .stats-grid{position:relative;z-index:10;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:0 36px 12px;}
+  .stat-chip{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px 8px;text-align:center;transition:all 0.2s;cursor:pointer;}
+  .stat-chip:hover{background:rgba(192,21,42,0.12);border-color:rgba(192,21,42,0.3);}
+  .stat-chip .icon{font-size:20px;margin-bottom:4px;}
+  .stat-chip .val{font-size:16px;font-weight:800;color:white;line-height:1;}
+  .stat-chip .lbl{font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px;}
+  .ussd-section{position:relative;z-index:10;padding:0 36px 10px;}
+  .btn-ussd{display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:white;text-decoration:none;font-size:13px;font-weight:600;font-family:'Sora',sans-serif;cursor:pointer;transition:all 0.2s;}
+  .btn-ussd:hover{background:rgba(192,21,42,0.12);border-color:rgba(192,21,42,0.4);color:white;}
+  .btn-ussd .left-ussd{display:flex;align-items:center;gap:10px;}
+  .ussd-icon{width:36px;height:36px;background:rgba(192,21,42,0.2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#C0152A;}
+  .arrow-icon{width:28px;height:28px;background:#C0152A;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+  .qr-section{position:relative;z-index:10;padding:0 36px 16px;display:flex;align-items:center;gap:14px;}
+  .qr-box{background:white;border-radius:8px;padding:6px;width:64px;height:64px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .qr-info{flex:1;}
+  .qr-info .qr-title{font-size:12px;font-weight:700;color:white;margin-bottom:3px;}
+  .qr-info .qr-sub{font-size:11px;color:rgba(255,255,255,0.35);line-height:1.4;}
+  .qr-stat{text-align:center;}
+  .qr-stat .val{font-size:20px;font-weight:800;color:white;}
+  .qr-stat .lbl{font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.5px;}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;}
+  .modal-overlay.active{display:flex;}
+  .modal-box{background:#1A1A1A;border-radius:20px;padding:28px;width:100%;max-width:460px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+  .modal-title{font-size:19px;font-weight:800;color:white;margin-bottom:5px;}
+  .modal-sub{font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:18px;}
+  .modal-input{width:100%;padding:11px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:9px;color:white;font-size:14px;font-family:'Sora',sans-serif;margin-bottom:10px;outline:none;}
+  .modal-input:focus{border-color:#C0152A;background:rgba(192,21,42,0.05);}
+  .modal-input::placeholder{color:rgba(255,255,255,0.25);}
+  .modal-btn{width:100%;padding:12px;background:#C0152A;color:white;border:none;border-radius:9px;font-size:14px;font-weight:700;font-family:'Sora',sans-serif;cursor:pointer;margin-bottom:8px;transition:background 0.2s;}
+  .modal-btn:hover{background:#8B0D1D;}
+  .modal-close{width:100%;padding:10px;background:transparent;color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:9px;font-size:13px;font-family:'Sora',sans-serif;cursor:pointer;transition:all 0.2s;}
+  .modal-close:hover{background:rgba(255,255,255,0.05);color:white;}
+  .modal-result{margin-top:12px;padding:12px;background:rgba(255,255,255,0.04);border-radius:9px;font-size:13px;color:rgba(255,255,255,0.7);display:none;}
+  .right-panel{background:#FAF5F0;display:flex;align-items:center;justify-content:center;padding:48px;height:100vh;overflow-y:auto;}
+  .login-wrap{width:100%;max-width:400px;}
+  .login-title{font-size:32px;font-weight:800;color:#1A1A1A;margin-bottom:6px;}
+  .login-sub{font-size:14px;color:#8A8A8A;margin-bottom:32px;}
+  .form-label{display:block;font-size:13px;font-weight:600;color:#3D3D3D;margin-bottom:6px;}
+  .form-ctrl{width:100%;padding:12px 14px;border:1px solid #E8E0D8;border-radius:10px;font-size:14px;font-family:'Sora',sans-serif;color:#1A1A1A;background:white;outline:none;transition:border-color 0.15s,box-shadow 0.15s;margin-bottom:18px;}
+  .form-ctrl:focus{border-color:#C0152A;box-shadow:0 0 0 3px rgba(192,21,42,0.1);}
+  .btn-login{width:100%;padding:14px;background:#C0152A;color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;font-family:'Sora',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;box-shadow:0 4px 16px rgba(192,21,42,0.3);}
+  .btn-login:hover{background:#8B0D1D;transform:translateY(-1px);}
+  .login-error{background:rgba(192,21,42,0.08);color:#C0152A;border-radius:8px;padding:10px 14px;font-size:13px;display:flex;align-items:center;gap:8px;margin-bottom:16px;}
+  .login-footer{margin-top:32px;padding-top:20px;border-top:1px solid #E8E0D8;text-align:center;font-size:11px;color:#8A8A8A;font-family:'JetBrains Mono',monospace;line-height:1.8;}
 </style>
 
-<div class="login-wrap">
-  <div class="login-left">
-    <div class="blood-drops" aria-hidden="true">
-      {% for i in "12345678" %}
-      <div class="drop" style="left:{{ forloop.counter0|add:1 }}0%; animation-duration: {{ forloop.counter|add:8 }}s; animation-delay: -{{ forloop.counter }}s;">🩸</div>
-      {% endfor %}
-    </div>
+<!-- ══ PANNEAU GAUCHE ══ -->
+<div class="left-panel">
+  <div class="bg-pattern">
+    <div class="bg-glow"></div>
+    <div class="bg-glow-2"></div>
+    <div class="cross-grid" id="crossGrid"></div>
+    <div class="oms-logo" style="top:7%;right:10%;">⚕</div>
+    <div class="oms-logo" style="top:36%;left:4%;font-size:38px;">⚕</div>
+    <div class="oms-logo" style="bottom:22%;right:7%;font-size:46px;">⚕</div>
+    <div class="oms-logo" style="bottom:5%;left:18%;font-size:34px;">⚕</div>
+  </div>
 
-    <div class="login-logo">
-      <div class="logo-circle">🩸</div>
-      <div class="logo-title">Banque de Sang<br>CNTS</div>
-      <div class="logo-sub">Brazzaville · Congo</div>
-    </div>
+  <div class="blood-drops" aria-hidden="true">
+    <div class="drop" style="left:8%;animation-duration:9s;animation-delay:0s;">🩸</div>
+    <div class="drop" style="left:20%;animation-duration:12s;animation-delay:-3s;">🩸</div>
+    <div class="drop" style="left:35%;animation-duration:8s;animation-delay:-6s;">🩸</div>
+    <div class="drop" style="left:50%;animation-duration:14s;animation-delay:-2s;">🩸</div>
+    <div class="drop" style="left:65%;animation-duration:10s;animation-delay:-7s;">🩸</div>
+    <div class="drop" style="left:78%;animation-duration:11s;animation-delay:-4s;">🩸</div>
+    <div class="drop" style="left:90%;animation-duration:9s;animation-delay:-1s;">🩸</div>
+    <div class="drop" style="left:42%;animation-duration:13s;animation-delay:-9s;">🩸</div>
+  </div>
 
-    <div class="login-stats">
-      <div class="login-stat">
-        <div class="val">8</div>
-        <div class="lbl">Groupes sanguins</div>
-      </div>
-      <div class="login-stat">
-        <div class="val">24/7</div>
-        <div class="lbl">Disponibilité</div>
-      </div>
-      <div class="login-stat">
-        <div class="val">SMS</div>
-        <div class="lbl">Africa's Talking</div>
-      </div>
-      <div class="login-stat">
-        <div class="val">GPS</div>
-        <div class="lbl">Géolocalisé</div>
-      </div>
+  <div class="public-nav">
+    <div class="nav-brand">
+      <span style="font-size:20px;">🩸</span>
+      CNTS<span class="dot"> ·</span> Brazzaville, Congo
+    </div>
+    <div class="nav-links">
+      <a href="#" onclick="openRegisterModal();return false;">Accès rapide</a>
+      <a href="#" style="color:rgba(255,255,255,0.7);font-weight:600;">Connexion</a>
     </div>
   </div>
 
-  <div class="login-right">
-    <div class="login-form-wrap">
-      <div class="login-heading">Connexion</div>
-      <div class="login-tagline">Centre National de Transfusion Sanguine</div>
-
-      {% if form.errors %}
-      <div class="alert-cnts danger mb-4">
-        <i class="bi bi-exclamation-triangle-fill"></i>
-        Identifiants incorrects. Veuillez réessayer.
+  <div class="hero-section">
+    <div class="hero-icons">
+      <div class="cross-pin">+</div>
+      <svg width="40" height="50" viewBox="0 0 52 66" fill="none">
+        <path d="M26 4C26 4 4 28 4 42C4 54.15 13.85 64 26 64C38.15 64 48 54.15 48 42C48 28 26 4 26 4Z" fill="#C0152A" stroke="#8B0D1D" stroke-width="2"/>
+        <circle cx="26" cy="42" r="8" fill="white" opacity="0.2"/>
+      </svg>
+      <div class="cross-pin" style="background:rgba(192,21,42,0.15);border-color:rgba(192,21,42,0.3);">
+        <span style="color:#C0152A;font-weight:900;">+</span>
       </div>
-      {% endif %}
+    </div>
+    <div class="slogan">
+      Un don de sang<br><span>égal</span> sauver<br>des vies
+    </div>
+  </div>
 
-      <form method="post">
-        {% csrf_token %}
-        <div class="mb-4">
-          <label class="form-label">Nom d'utilisateur</label>
-          {{ form.username }}
-        </div>
-        <div class="mb-4">
-          <label class="form-label">Mot de passe</label>
-          {{ form.password }}
-        </div>
-        <button type="submit" class="btn-blood w-100" style="justify-content:center;padding:12px;">
-          <i class="bi bi-shield-lock"></i> Se connecter
-        </button>
-      </form>
+  <div class="stats-grid">
+    <div class="stat-chip">
+      <div class="icon">🩸</div>
+      <div class="val" id="statDonneurs">—</div>
+      <div class="lbl">Donneurs</div>
+    </div>
+    <div class="stat-chip">
+      <div class="icon">🩺</div>
+      <div class="val">8</div>
+      <div class="lbl">Groupes sanguins</div>
+    </div>
+    <div class="stat-chip">
+      <div class="icon">⏰</div>
+      <div class="val">24/7</div>
+      <div class="lbl">Disponibilité</div>
+    </div>
+    <div class="stat-chip" onclick="openRegisterModal()">
+      <div class="icon">👤</div>
+      <div class="val" style="font-size:11px;padding-top:3px;">S'enregistrer</div>
+      <div class="lbl">Don de sang</div>
+    </div>
+    <div class="stat-chip" onclick="openUSSD()">
+      <div class="icon">📱</div>
+      <div class="val" style="font-size:13px;">SMS</div>
+      <div class="lbl">Africa's Talking</div>
+    </div>
+    <div class="stat-chip">
+      <div class="icon">📍</div>
+      <div class="val" style="font-size:13px;">GPS</div>
+      <div class="lbl">Géolocalisé</div>
+    </div>
+  </div>
 
-      <div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);text-align:center;">
-        <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;">
-          CNTS · Brazzaville, Congo<br>
-          Système de Gestion de Banque de Sang
+  <div class="ussd-section">
+    <button class="btn-ussd" onclick="openUSSD()">
+      <div class="left-ussd">
+        <div class="ussd-icon"><i class="bi bi-phone-fill"></i></div>
+        <div>
+          <div style="font-size:12px;font-weight:700;">Accéder aux services USSD / SMS</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:1px;">Africa's Talking · Composez *XXX#</div>
         </div>
       </div>
+      <div class="arrow-icon">
+        <i class="bi bi-arrow-right" style="color:white;font-size:11px;"></i>
+      </div>
+    </button>
+  </div>
+
+  <div class="qr-section">
+    <div class="qr-box">
+      <canvas id="qrCanvas" width="48" height="48"></canvas>
+    </div>
+    <div class="qr-info">
+      <div class="qr-title">Scanner pour accéder</div>
+      <div class="qr-sub">Scannez ce QR code pour<br>accéder au portail CNTS</div>
+    </div>
+    <div class="qr-stat">
+      <div class="val" id="qrStatVal">—</div>
+      <div class="lbl">Donneurs<br>enregistrés</div>
     </div>
   </div>
 </div>
-{% endblock %}
+
+<!-- ══ PANNEAU DROIT — CONNEXION ══ -->
+<div class="right-panel">
+  <div class="login-wrap">
+    <div class="login-title">Connexion</div>
+    <div class="login-sub">Centre National de Transfusion Sanguine</div>
+
+    {% if form.errors %}
+    <div class="login-error">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      Identifiants incorrects. Veuillez réessayer.
+    </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <label class="form-label">Nom d'utilisateur</label>
+      <input type="text" name="username" class="form-ctrl"
+             placeholder="Entrez votre identifiant"
+             value="{{ form.username.value|default:'' }}"
+             autocomplete="username" autofocus/>
+      <label class="form-label">Mot de passe</label>
+      <input type="password" name="password" class="form-ctrl"
+             placeholder="••••••••" autocomplete="current-password"/>
+      <button type="submit" class="btn-login">
+        <i class="bi bi-shield-lock-fill"></i> Se connecter
+      </button>
+    </form>
+
+    <div class="login-footer">
+      CNTS · Brazzaville, Congo<br>
+      Système de Gestion de Banque de Sang
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODALE PRÉ-ENREGISTREMENT ══ -->
+<div class="modal-overlay" id="registerOverlay" onclick="if(event.target===this)closeRegisterModal()">
+  <div class="modal-box">
+    <div class="modal-title">📝 Pré‑enregistrement donneur</div>
+    <div class="modal-sub">Remplissez ce formulaire pour être contacté par un agent CNTS</div>
+    <input type="text" id="regNom" class="modal-input" placeholder="Nom complet *">
+    <input type="tel" id="regTel" class="modal-input" placeholder="Téléphone *">
+    <input type="email" id="regEmail" class="modal-input" placeholder="Email (optionnel)">
+    <button class="modal-btn" onclick="envoyerPreEnregistrement()">Envoyer ma demande</button>
+    <button class="modal-close" onclick="closeRegisterModal()">Fermer</button>
+    <div class="modal-result" id="registerResult" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ══ MODALE USSD/SMS ══ -->
+<div class="modal-overlay" id="ussdOverlay" onclick="if(event.target===this)closeUSSDModal()">
+  <div class="modal-box">
+    <div class="modal-title">📱 Services USSD / SMS</div>
+    <div class="modal-sub">Accédez aux services CNTS depuis n'importe quel téléphone</div>
+    <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;margin-bottom:14px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;color:#C0152A;text-align:center;letter-spacing:5px;margin-bottom:6px;">*XXX#</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.35);text-align:center;">Composez ce code depuis votre téléphone</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:18px;margin-bottom:3px;">1️⃣</div>
+        <div style="font-size:12px;font-weight:600;color:white;">Mes dons</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:2px;">Historique personnel</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:18px;margin-bottom:3px;">2️⃣</div>
+        <div style="font-size:12px;font-weight:600;color:white;">Stock sanguin</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:2px;">Disponibilités temps réel</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:18px;margin-bottom:3px;">3️⃣</div>
+        <div style="font-size:12px;font-weight:600;color:white;">Campagnes</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:2px;">Alertes & collectes</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:18px;margin-bottom:3px;">4️⃣</div>
+        <div style="font-size:12px;font-weight:600;color:white;">Contact CNTS</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:2px;">Localiser le centre</div>
+      </div>
+    </div>
+    <div style="background:rgba(192,21,42,0.08);border-radius:9px;padding:10px;font-size:12px;color:rgba(255,255,255,0.45);text-align:center;margin-bottom:12px;">
+      <i class="bi bi-phone" style="color:#C0152A;"></i> Fonctionne sur tous les réseaux · Sans internet · Gratuit
+    </div>
+    <button class="modal-close" onclick="closeUSSDModal()">Fermer</button>
+  </div>
+</div>
+
+<script>
+// Croix décoratives
+const grid=document.getElementById('crossGrid');
+for(let i=0;i<80;i++){const d=document.createElement('div');d.className='cross-item';d.textContent='+';grid.appendChild(d);}
+
+// Compteur donneurs (public, juste le nombre)
+fetch('/api/donneurs/geo/').then(r=>r.json()).then(data=>{
+  const n=data.total||'—';
+  document.getElementById('statDonneurs').textContent=n;
+  document.getElementById('qrStatVal').textContent=n;
+}).catch(()=>{});
+
+// QR Code décoratif
+(function(){
+  const c=document.getElementById('qrCanvas'),ctx=c.getContext('2d'),sz=48,cell=3;
+  ctx.fillStyle='white';ctx.fillRect(0,0,sz,sz);
+  const p=[[1,1,1,1,1,1,1,0,0,1,0,1,1,0,1],[1,0,0,0,0,0,1,0,1,0,1,0,1,0,1],[1,0,1,1,1,0,1,0,0,1,1,1,0,0,1],[1,0,1,1,1,0,1,0,1,0,0,1,1,0,0],[1,0,1,1,1,0,1,0,1,1,0,0,0,1,1],[1,0,0,0,0,0,1,0,0,1,0,1,0,1,0],[1,1,1,1,1,1,1,0,1,0,1,0,1,0,1],[0,0,0,0,0,0,0,0,1,1,0,1,0,0,0],[1,0,1,1,0,0,1,0,1,0,1,0,1,1,0],[0,1,0,0,1,0,0,1,0,1,0,1,0,0,1],[1,0,1,0,1,1,1,0,1,0,1,1,0,1,0],[0,1,0,1,0,1,0,1,1,0,0,1,1,0,1],[1,1,1,1,1,1,1,0,0,1,0,0,1,1,0],[0,0,0,0,0,1,0,0,1,0,1,1,0,0,1],[1,1,0,1,1,0,1,1,0,1,0,1,1,0,1]];
+  ctx.fillStyle='#1A1A1A';
+  p.forEach((row,y)=>row.forEach((v,x)=>{if(v)ctx.fillRect(x*cell,y*cell,cell-1,cell-1);}));
+})();
+
+// Modales
+function openRegisterModal() {
+    document.getElementById('registerOverlay').classList.add('active');
+}
+function closeRegisterModal() {
+    document.getElementById('registerOverlay').classList.remove('active');
+}
+function openUSSD() {
+    document.getElementById('ussdOverlay').classList.add('active');
+}
+function closeUSSDModal() {
+    document.getElementById('ussdOverlay').classList.remove('active');
+}
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        closeRegisterModal();
+        closeUSSDModal();
+    }
+});
+function getCSRFToken() {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, 10) === 'csrftoken=') {
+                cookieValue = decodeURIComponent(cookie.substring(10));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+// Envoi du pré‑enregistrement
+function envoyerPreEnregistrement() {
+    const nom = document.getElementById('regNom').value.trim();
+    const tel = document.getElementById('regTel').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const resultDiv = document.getElementById('registerResult');
+    if (!nom || !tel) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<span style="color:#C0152A;">Veuillez remplir le nom et le téléphone.</span>';
+        return;
+    }
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<span style="color:rgba(255,255,255,0.4);">Envoi en cours…</span>';
+    fetch('/pre-enregistrement/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCSRFToken()   // ← SEULEMENT CETTE LIGNE À AJOUTER
+        },
+        body: new URLSearchParams({ 'nom_complet': nom, 'telephone': tel, 'email': email })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = '<span style="color:#1A7A4A;">✅ ' + data.message + '</span>';
+            setTimeout(() => closeRegisterModal(), 2000);
+        } else {
+            resultDiv.innerHTML = '<span style="color:#C0152A;">❌ ' + data.message + '</span>';
+        }
+    })
+    .catch(() => {
+        resultDiv.innerHTML = '<span style="color:#C0152A;">Erreur réseau. Veuillez réessayer.</span>';
+    });
+}
+</script>
+
+</body>
+</html> 

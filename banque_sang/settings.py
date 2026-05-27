@@ -1,14 +1,14 @@
 import os
 from pathlib import Path
 
+# Chemins de base du projet
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-banque-sang-congo-secret-key-change-in-production-2024'
-
+SECRET_KEY = 'django-insecure-cle-secrete-pour-la-banque-de-sang-brazzaville'
 DEBUG = True
-
 ALLOWED_HOSTS = ['*']
 
+# Applications installées
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -16,8 +16,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'blood_bank.apps.BloodBankConfig',  # AppConfig explicite
+    # Ton application
+    'blood_bank',
 ]
+
+# Ton modèle utilisateur personnalisé (TRES IMPORTANT !)
+AUTH_USER_MODEL = 'blood_bank.Utilisateur'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -29,12 +33,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'banque_sang.urls'
+ROOT_URLCONF = 'banque_sang.urls' # (Vérifie que c'est bien le nom de ton dossier principal)
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'blood_bank' / 'templates'],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')], # Si tu as un dossier templates global
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -49,6 +53,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'banque_sang.wsgi.application'
 
+# Base de données (SQLite pour l'instant)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -56,46 +61,47 @@ DATABASES = {
     }
 }
 
+# Mots de passe
 AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
+# Langue et heure (Congo)
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Brazzaville'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-# STATICFILES_DIRS uniquement si le dossier existe
-_STATIC_DIR = BASE_DIR / 'blood_bank' / 'static'
-if _STATIC_DIR.exists():
-    STATICFILES_DIRS = [_STATIC_DIR]
+# Fichiers statiques (CSS, JS, Images de design)
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+# Fichiers Médias (Photos de profil et QR CODES !)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Modèle utilisateur personnalisé
-AUTH_USER_MODEL = 'blood_bank.Utilisateur'
+# Configuration Africa's Talking (Mode simulation pour l'instant)
+AFRICASTALKING_USERNAME = 'sandbox'
+AFRICASTALKING_API_KEY = 'atsk_35fa117ea7fdaf95c0fead8c71817bb9c126b3586b155367025d306ccfc23f8f295d80f6'
+# ==========================================
+# CONFIGURATION EMAIL (SMTP GMAIL) - VRAIS EMAILS
+# ==========================================
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
 
-LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/dashboard/'
-LOGOUT_REDIRECT_URL = '/login/'
+# Ton adresse email dédiée au projet
+EMAIL_HOST_USER = 'cntscongobrazzaville@gmail.com' 
 
-# Africa's Talking SMS Configuration
-AFRICASTALKING_USERNAME = 'sandbox'  # Change to your username in production
-AFRICASTALKING_API_KEY = 'your-africastalking-api-key-here'
-AFRICASTALKING_SENDER_ID = 'BanqueSang'
+# LE CODE SECRET À 16 LETTRES GÉNÉRÉ PAR GOOGLE (Sans espaces)
+# Remplace 'xxxx xxxx xxxx xxxx' par ton vrai code !
+EMAIL_HOST_PASSWORD = ' lhnoqonlczkfxfug '
 
-# Centre de transfusion - Coordonnées GPS (Brazzaville, Congo)
-CENTRE_NOM = "Centre National de Transfusion Sanguine"
-CENTRE_ADRESSE = "Avenue des Trois Martyrs, Brazzaville, Congo"
-CENTRE_LATITUDE = -4.2634
-CENTRE_LONGITUDE = 15.2429
-CENTRE_TELEPHONE = "+242 06 XXX XXXX"
-CENTRE_EMAIL = "cnts@sante.cg"
+# Le nom officiel qui s'affichera chez le destinataire
+DEFAULT_FROM_EMAIL = 'CNTS Brazzaville <cntscongobrazzaville@gmail.com>'

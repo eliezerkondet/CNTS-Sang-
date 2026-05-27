@@ -1,0 +1,51 @@
+{% extends 'blood_bank/base.html' %}
+{% block content %}
+<div class="container">
+    <h2>Candidats à prélever</h2>
+    
+    {% if candidats %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Téléphone</th>
+                    <th>Âge</th>
+                    <th>Poids</th>
+                    <th>Type</th>
+                    <th>Examen médical</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for candidat in candidats %}
+                <tr>
+                    <td>{{ candidat.nom_complet }}</td>
+                    <td>{{ candidat.telephone }}</td>
+                    <td>{{ candidat.age }} ans\n</td>
+                    <td>{{ candidat.poids }} kg</td>
+                    <td>{{ candidat.get_type_visite_display }}</td>
+                    <!-- Nouvelle colonne : Validation examen -->
+                    <td>
+                        <form method="post" action="{% url 'valider_examen_candidat' candidat.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-primary" 
+                                    {% if candidat.examen_medical_valide %}disabled{% endif %}>
+                                {% if candidat.examen_medical_valide %}✅ Validé{% else %}🏥 Valider examen{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                    <!-- Colonne Action : Prélèvement -->
+                    <td>
+                        <a href="{% url 'prelever_candidat' candidat.pk %}" class="btn btn-sm btn-danger">
+                            🩸 Prélever
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Aucun candidat en attente de prélèvement.</p>
+    {% endif %}
+</div>
+{% endblock %}

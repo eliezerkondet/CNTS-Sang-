@@ -32,10 +32,14 @@
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
                     Ce donneur est éligible pour recevoir sa carte ({{ nb_dons }}/{{ seuil }} dons).
-                    <form method="post" class="mt-3">
+                    <form method="post" enctype="multipart/form-data" class="mt-3 text-start">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-id-card"></i> Générer la carte donneur
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-dark">📷 Photo d'identité (Optionnel) :</label>
+                            <input type="file" name="photo" class="form-control" accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-id-card"></i> Générer la carte donneur & QR Code
                         </button>
                     </form>
                 </div>

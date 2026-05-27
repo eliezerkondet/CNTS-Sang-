@@ -4,231 +4,297 @@
 
 {% block extra_css %}
 <style>
-  .stock-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  .stock-item {
-    background: white; border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px;
-    display: flex; align-items: center; gap: 12px;
-    transition: all 0.15s;
+  .dashboard-container {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
   }
-  .stock-item:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
-  .stock-item.critique { border-color: var(--crimson); background: rgba(192,21,42,0.02); }
-  .stock-count { font-size: 22px; font-weight: 800; }
-  .stock-label { font-size: 11px; color: var(--muted); }
-  .map-container { height: 320px; border-radius: 12px; overflow: hidden; }
-  canvas { max-height: 200px; }
-
-  /* Style spécifique pour les mini-cartes de type de produit */
+  
+  /* Cartes statistiques */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+  }
+  
+  .stat-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s;
+  }
+  
+  .stat-card:hover { transform: translateY(-3px); }
+  
+  .stat-card .stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 15px;
+  }
+  
+  .stat-card .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: #1A1A1A;
+    line-height: 1.2;
+  }
+  
+  .stat-card .stat-label {
+    font-size: 13px;
+    color: #8A8A8A;
+    margin-top: 5px;
+  }
+  
+  .stat-crimson .stat-icon { background: rgba(192,21,42,0.1); color: #C0152A; }
+  .stat-gold .stat-icon { background: rgba(201,168,76,0.1); color: #C9A84C; }
+  .stat-success .stat-icon { background: rgba(26,122,74,0.1); color: #1A7A4A; }
+  .stat-info .stat-icon { background: rgba(26,92,139,0.1); color: #1A5C8B; }
+  
+  /* Stock par type */
+  .stock-type-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+  }
+  
   .product-stat-card {
     background: white;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 15px;
+    border-radius: 16px;
+    padding: 20px;
     text-align: center;
-    border-bottom: 3px solid var(--crimson);
+    border-bottom: 3px solid #C0152A;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
-  .product-stat-card h5 { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; margin-bottom: 5px; }
-  .product-stat-card h3 { font-size: 24px; font-weight: 800; margin: 0; color: var(--charcoal); }
+  
+  .product-stat-card h5 {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #8A8A8A;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+  
+  .product-stat-card h3 {
+    font-size: 32px;
+    font-weight: 800;
+    margin: 0;
+    color: #1A1A1A;
+  }
+  
+  /* Section titre */
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .section-title a {
+    font-size: 13px;
+    font-weight: 500;
+    color: #C0152A;
+    text-decoration: none;
+  }
+  
+  /* Stock par groupe */
+  .stock-group-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 12px;
+    margin-bottom: 30px;
+  }
+  
+  .stock-group-item {
+    background: white;
+    border-radius: 12px;
+    padding: 15px 10px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  
+  .stock-group-item.critique {
+    border: 1px solid #C0152A;
+    background: rgba(192,21,42,0.02);
+  }
+  
+  .group-label {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+  
+  .group-count {
+    font-size: 28px;
+    font-weight: 800;
+    color: #C0152A;
+  }
+  
+  .group-count.critique { color: #C0152A; }
+  .group-label-small { font-size: 10px; color: #8A8A8A; }
+  
+  /* Graphique */
+  .chart-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom: 30px;
+  }
+  
+  .chart-container {
+    width: 100%;
+    min-height: 350px;
+    position: relative;
+  }
+  
+  canvas {
+    max-height: 350px;
+    width: 100% !important;
+  }
+  
+  /* Bouton campagne */
+  .campagne-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #C9A84C;
+    color: white;
+    padding: 12px 28px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+  
+  .campagne-btn:hover {
+    background: #b8942a;
+    color: white;
+  }
+  
+  /* Blood group colors */
+  .blood-a { color: #1A5C8B; }
+  .blood-b { color: #1A7A4A; }
+  .blood-o { color: #C0152A; }
+  .blood-ab { color: #C9A84C; }
+  
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .stock-type-grid { grid-template-columns: repeat(2, 1fr); }
+    .stock-group-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: 1fr; }
+    .stock-type-grid { grid-template-columns: 1fr; }
+    .stock-group-grid { grid-template-columns: repeat(2, 1fr); }
+  }
 </style>
 {% endblock %}
-
 {% block content %}
-<div class="page-header">
-  <div>
-    <div class="page-title">Vue d'ensemble</div>
-    <div class="page-subtitle">Centre National de Transfusion Sanguine · Brazzaville</div>
+<div class="dashboard-container">
+  
+  <!-- STATS CARDS -->
+  <div class="stats-grid">
+    <div class="stat-card stat-crimson">
+      <div class="stat-icon"><i class="bi bi-person-heart"></i></div>
+      <div class="stat-value">{{ stats.total_donneurs }}</div>
+      <div class="stat-label">Donneurs actifs</div>
+    </div>
+    <div class="stat-card stat-gold">
+      <div class="stat-icon"><i class="bi bi-droplet-half"></i></div>
+      <div class="stat-value">{{ stats.dons_mois }}</div>
+      <div class="stat-label">Dons ce mois</div>
+    </div>
+    <div class="stat-card stat-success">
+      <div class="stat-icon"><i class="bi bi-box-seam"></i></div>
+      <div class="stat-value">{{ stats.poches_disponibles }}</div>
+      <div class="stat-label">Poches disponibles</div>
+    </div>
+    <div class="stat-card stat-info">
+      <div class="stat-icon"><i class="bi bi-file-medical"></i></div>
+      <div class="stat-value">{{ stats.demandes_en_attente }}</div>
+      <div class="stat-label">Demandes en attente</div>
+    </div>
   </div>
-  <div style="display:flex;gap:10px;">
-    <a href="{% url 'donneur_create' %}" class="btn-blood"><i class="bi bi-person-plus"></i> Nouveau donneur</a>
-    <a href="{% url 'poche_create' %}" class="btn-outline-blood"><i class="bi bi-droplet-fill"></i> Prélèvement</a>
-  </div>
-</div>
 
-<!-- Ajouter les accès rapides -->
-<div class="mb-4">
-  {% include 'blood_bank/fragments/acces_rapide.html' %}
-</div>
-
-<!-- STATS CARDS GLOBALES -->
-<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:24px;">
-  <div class="stat-card stat-crimson">
-    <div class="stat-icon"><i class="bi bi-person-heart"></i></div>
-    <div class="stat-value">{{ stats.total_donneurs }}</div>
-    <div class="stat-label">Donneurs actifs</div>
-  </div>
-  <div class="stat-card stat-gold">
-    <div class="stat-icon"><i class="bi bi-droplet-half"></i></div>
-    <div class="stat-value">{{ stats.dons_mois }}</div>
-    <div class="stat-label">Dons ce mois</div>
-  </div>
-  <div class="stat-card stat-success">
-    <div class="stat-icon"><i class="bi bi-box-seam"></i></div>
-    <div class="stat-value">{{ stats.poches_disponibles }}</div>
-    <div class="stat-label">Poches disponibles</div>
-  </div>
-  <div class="stat-card stat-info">
-    <div class="stat-icon"><i class="bi bi-file-medical"></i></div>
-    <div class="stat-value">{{ stats.demandes_en_attente }}</div>
-    <div class="stat-label">Demandes en attente</div>
-  </div>
-  <div class="stat-card stat-crimson">
-    <div class="stat-icon"><i class="bi bi-bell-fill"></i></div>
-    <div class="stat-value">{{ stats.alertes_actives }}</div>
-    <div class="stat-label">Alertes actives</div>
-  </div>
-  <div class="stat-card stat-gold">
-    <div class="stat-icon"><i class="bi bi-chat-dots"></i></div>
-    <div class="stat-value">{{ stats.sms_envoyes }}</div>
-    <div class="stat-label">SMS aujourd'hui</div>
-  </div>
-</div>
-
-<!-- Ajouter les statistiques de stock par type -->
-<div class="row mb-4">
-  <div class="col-md-3">
+  <!-- STOCK PAR TYPE -->
+  <div class="stock-type-grid">
     <div class="product-stat-card">
       <h5>Sang total</h5>
       <h3>{{ stats_stock.sang_total|default:0 }}</h3>
     </div>
-  </div>
-  <div class="col-md-3">
     <div class="product-stat-card">
       <h5>Plaquettes</h5>
       <h3>{{ stats_stock.culot_plaquettaire|default:0 }}</h3>
     </div>
-  </div>
-  <div class="col-md-3">
     <div class="product-stat-card">
       <h5>Plasma (PFC)</h5>
       <h3>{{ stats_stock.plasma_frais_congele|default:0 }}</h3>
     </div>
-  </div>
-  <div class="col-md-3">
     <div class="product-stat-card">
       <h5>Culots Globulaires</h5>
       <h3>{{ stats_stock.culot_globulaire|default:0 }}</h3>
     </div>
   </div>
+<div class="col-md-3">
+        <div class="product-stat-card">
+            <h5>Cryoprécipité</h5>
+            <h3>{{ stats_stock.cryoprecipite|default:0 }}</h3>
+        </div>
+    </div>
 </div>
-
-<!-- STOCK PAR GROUPE -->
-<div class="card mb-4">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-    <div style="font-size:15px;font-weight:700;">Stock par groupe sanguin (Total)</div>
-    <a href="{% url 'stock_view' %}" class="btn-sm-ghost"><i class="bi bi-arrow-right"></i> Détail</a>
+  <!-- STOCK PAR GROUPE -->
+  <div class="section-title">
+    <span>Stock par groupe sanguin</span>
+    <a href="{% url 'stock_view' %}">Détail <i class="bi bi-arrow-right"></i></a>
   </div>
-  <div class="stock-grid">
+  <div class="stock-group-grid">
     {% for item in stock_par_groupe %}
-    <div class="stock-item {% if item.critique %}critique{% endif %}">
-      <div class="blood-badge blood-{{ item.groupe|first|lower }}">{{ item.groupe }}</div>
-      <div>
-        <div class="stock-count {% if item.critique %}text-danger{% endif %}">{{ item.count }}</div>
-        <div class="stock-label">poche{{ item.count|pluralize }}</div>
-        {% if item.critique %}
-        <div style="font-size:10px;color:var(--crimson);font-weight:600;">⚠ CRITIQUE</div>
-        {% endif %}
-      </div>
+    <div class="stock-group-item {% if item.critique %}critique{% endif %}">
+      <div class="group-label blood-{{ item.groupe|first|lower }}">{{ item.groupe }}</div>
+      <div class="group-count {% if item.critique %}critique{% endif %}">{{ item.count }}</div>
+      <div class="group-label-small">poches</div>
     </div>
     {% endfor %}
   </div>
-</div>
 
-<!-- ROW: GRAPHIQUE + CARTE -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
-  <!-- Graphique dons -->
-  <div class="card">
-    <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Dons — 7 derniers jours</div>
-    <canvas id="donChart"></canvas>
+  <!-- GRAPHIQUE DONS -->
+<div class="chart-card">
+  <div class="section-title">
+    <span>Dons — 7 derniers jours</span>
   </div>
-
-  <!-- Carte géo du centre -->
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <div style="font-size:15px;font-weight:700;">Localisation du centre</div>
-      <a href="{% url 'donneur_carte' %}" class="btn-sm-ghost"><i class="bi bi-map"></i> Carte donneurs</a>
-    </div>
-    <div class="map-container" id="centreMap"></div>
-    <div style="margin-top:10px;font-size:12px;color:var(--muted);">
-      <i class="bi bi-geo-alt-fill" style="color:var(--crimson);"></i>
-      {{ centre_info.adresse }}
-    </div>
+  <div class="chart-container">
+    <canvas id="donChart" style="width:100%; height:350px;"></canvas>
   </div>
 </div>
 
-<!-- ROW: DEMANDES + DONNEURS -->
-<div style="display:grid;grid-template-columns:3fr 2fr;gap:20px;margin-bottom:24px;">
-  <!-- Dernières demandes -->
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:15px;font-weight:700;">Demandes récentes</div>
-      <a href="{% url 'demande_list' %}" class="btn-sm-ghost">Voir tout</a>
-    </div>
-    <table class="table-clean">
-      <thead>
-        <tr>
-          <th>#</th><th>Hôpital</th><th>Groupe</th><th>Urgence</th><th>Statut</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for d in demandes_recentes %}
-        <tr>
-          <td><span class="mono" style="font-size:12px;">#{{ d.pk }}</span></td>
-          <td><a href="{% url 'demande_detail' d.pk %}" style="color:var(--charcoal);font-weight:600;">{{ d.hopital|truncatechars:22 }}</a></td>
-          <td><span class="blood-badge blood-{{ d.groupe_requis|first|lower }}" style="width:36px;height:36px;font-size:12px;">{{ d.groupe_requis }}</span></td>
-          <td><span class="urgence-{{ d.urgence }}">{{ d.get_urgence_display }}</span></td>
-          <td><span class="badge-status status-{{ d.statut_demande }}">{{ d.get_statut_demande_display }}</span></td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px;">Aucune demande</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <!-- BOUTON CAMPAGNE (seulement infirmier) -->
+  {% if user.role == 'infirmier' %}
+  <div class="text-center">
+    <a href="{% url 'candidats_a_prelever' %}" class="campagne-btn">
+      <i class="bi bi-droplet"></i> Candidats campagne à prélever
+    </a>
   </div>
+  {% endif %}
 
-  <!-- Donneurs récents + alertes -->
-  <div style="display:flex;flex-direction:column;gap:16px;">
-    <div class="card" style="flex:1;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Donneurs récents</div>
-      {% for d in donneurs_recents %}
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-        <div style="width:32px;height:32px;background:rgba(192,21,42,0.1);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--crimson);font-size:13px;">
-          {{ d.nom_complet|first }}
-        </div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ d.nom_complet }}</div>
-          <div style="font-size:11px;color:var(--muted);">{{ d.groupe_sanguin }} · {{ d.date_inscription|date:"d/m/Y" }}</div>
-        </div>
-        <span class="blood-badge blood-{{ d.groupe_sanguin|first|lower }}" style="width:32px;height:32px;font-size:10px;">{{ d.groupe_sanguin }}</span>
-      </div>
-      {% empty %}
-      <div style="color:var(--muted);font-size:13px;">Aucun donneur</div>
-      {% endfor %}
-    </div>
-
-    {% if alertes %}
-    <div class="card" style="border-color:rgba(192,21,42,0.3);">
-      <div style="font-size:14px;font-weight:700;color:var(--crimson);margin-bottom:10px;">
-        <i class="bi bi-bell-fill"></i> Alertes stock
-      </div>
-      {% for a in alertes %}
-      <div class="alert-cnts {% if a.niveau == 'critical' %}danger{% else %}warning{% endif %} mb-2">
-        <i class="bi bi-exclamation-triangle-fill"></i>
-        Groupe {{ a.groupe_sanguin }}: {{ a.stock_actuel }} poche(s)
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-  </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// Chart dons 7 jours
-const donsData = {{ dons_semaine|safe }};
+const donsData = JSON.parse('{{ dons_semaine|escapejs }}');
 new Chart(document.getElementById('donChart'), {
   type: 'bar',
   data: {
@@ -236,38 +302,24 @@ new Chart(document.getElementById('donChart'), {
     datasets: [{
       label: 'Dons',
       data: donsData.map(d => d.count),
-      backgroundColor: 'rgba(192,21,42,0.15)',
+      backgroundColor: 'rgba(192,21,42,0.7)',
       borderColor: '#C0152A',
-      borderWidth: 2,
-      borderRadius: 6,
+      borderWidth: 1,
+      borderRadius: 8,
     }]
   },
   options: {
     responsive: true,
-    plugins: { legend: { display: false } },
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: function(context) { return context.raw + ' dons'; } } }
+    },
     scales: {
-      y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.04)' } },
+      y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 }, grid: { color: 'rgba(0,0,0,0.05)' } },
       x: { grid: { display: false } }
     }
   }
 });
-
-// Carte Leaflet - Centre
-const map = L.map('centreMap').setView([{{ centre_info.latitude }}, {{ centre_info.longitude }}], 14);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap'
-}).addTo(map);
-
-const redIcon = L.divIcon({
-  html: '<div style="background:#C0152A;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;">🏥</div>',
-  iconSize: [24, 24],
-  iconAnchor: [12, 12],
-  className: ''
-});
-
-L.marker([{{ centre_info.latitude }}, {{ centre_info.longitude }}], {icon: redIcon})
-  .addTo(map)
-  .bindPopup('<b>{{ centre_info.nom }}</b><br>{{ centre_info.adresse }}')
-  .openPopup();
 </script>
 {% endblock %}

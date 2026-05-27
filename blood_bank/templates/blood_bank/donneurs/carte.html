@@ -1,218 +1,247 @@
 {% extends 'blood_bank/base.html' %}
 {% load static %}
-
-{% block title %}Carte géographique des donneurs - CNTS{% endblock %}
-
+{% block title %}Carte géographique des donneurs — CNTS{% endblock %}
 {% block page_title %}Carte géographique des donneurs{% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<style>
-    #map {
-        height: 500px;
-        width: 100%;
-        border-radius: 12px;
-        margin-top: 20px;
-        margin-bottom: 20px;
-        background-color: #f0f0f0;
-    }
-    .info-panel {
-        background: white;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-    .stat-card-map {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-    }
-    .legend {
-        background: white;
-        padding: 10px;
-        border-radius: 8px;
-        font-size: 12px;
-        border: 1px solid #ddd;
-    }
-    .legend-item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 5px;
-    }
-    .legend-color {
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        margin-right: 8px;
-    }
-    .alert-warning {
-        background-color: #fff3cd;
-        border-color: #ffeeba;
-        color: #856404;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-12">
-            <div class="info-panel">
-                <div class="row align-items-center">
-                    <div class="col-md-6">
-                        <h4><i class="bi bi-geo-alt-fill text-danger"></i> Localisation des donneurs</h4>
-                        <p class="text-muted mb-0">
-                            <i class="bi bi-info-circle"></i>
-                            Carte interactive des donneurs enregistrés au CNTS Brazzaville
-                        </p>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stat-card-map">
-                            <h3>{{ total_donneurs|default:0 }}</h3>
-                            <small>Donneurs localisés</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="legend">
-                            <div class="legend-item">
-                                <div class="legend-color" style="background: #e74c3c;"></div>
-                                <span>Groupe O</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background: #3498db;"></div>
-                                <span>Groupe A</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background: #2ecc71;"></div>
-                                <span>Groupe B</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background: #f39c12;"></div>
-                                <span>Groupe AB</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background: #e74c3c; border: 2px solid #fff; box-shadow: 0 0 0 2px #e74c3c;"></div>
-                                <span>Centre CNTS</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <div class="col-md-12">
-            <div id="map"></div>
-        </div>
-    </div>
-
-    {% if total_donneurs == 0 %}
-    <div class="row mt-3">
-        <div class="col-md-12">
-            <div class="alert alert-warning">
-                <i class="bi bi-exclamation-triangle"></i>
-                Aucun donneur avec coordonnées géographiques.
-                <a href="{% url 'donneur_list' %}" class="alert-link">Ajoutez des coordonnées</a> aux donneurs pour les voir sur la carte.
-            </div>
-        </div>
-    </div>
-    {% endif %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Carte géographique des donneurs</div>
+    <div class="page-subtitle">Localisation en temps réel — Brazzaville et environs</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{% url 'donneur_list' %}" class="btn-sm-ghost">
+      <i class="bi bi-list-ul"></i> Liste des donneurs
+    </a>
+  </div>
 </div>
 
+<!-- Stats + Légende -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:16px;">
+  <div class="card" style="text-align:center;border-top:3px solid var(--crimson);">
+    <div style="font-size:32px;font-weight:900;color:var(--crimson);">{{ total_donneurs|default:0 }}</div>
+    <div style="font-size:12px;color:var(--muted);">Donneurs localisés</div>
+  </div>
+  <div class="card" style="grid-column:2/-1;display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 16px;">
+    <span style="font-size:13px;font-weight:700;color:var(--muted);">Légende :</span>
+    {% for couleur, label in legende %}
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:16px;height:16px;border-radius:50%;background:{{ couleur }};border:2px solid white;box-shadow:0 0 0 1px {{ couleur }};"></div>
+      <span style="font-size:12px;">{{ label }}</span>
+    </div>
+    {% empty %}
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:16px;height:16px;border-radius:50%;background:#e74c3c;border:2px solid white;"></div>
+      <span style="font-size:12px;">Groupe O</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:16px;height:16px;border-radius:50%;background:#3498db;border:2px solid white;"></div>
+      <span style="font-size:12px;">Groupe A</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:16px;height:16px;border-radius:50%;background:#2ecc71;border:2px solid white;"></div>
+      <span style="font-size:12px;">Groupe B</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:16px;height:16px;border-radius:50%;background:#f39c12;border:2px solid white;"></div>
+      <span style="font-size:12px;">Groupe AB</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:16px;height:16px;border-radius:50%;background:#C0152A;border:2px solid white;"></div>
+      <span style="font-size:12px;">🩸 CNTS</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Barre de recherche dynamique Nominatim -->
+<div class="card mb-3">
+  <div style="display:flex;gap:10px;align-items:center;">
+    <input type="text" id="mapSearch"
+           class="form-control"
+           placeholder="🔍 Rechercher un quartier ou une zone... Ex: Bacongo, Poto-Poto, Moungali..."
+           autocomplete="off" style="flex:1;">
+    <button type="button" onclick="rechercherSurCarte()"
+            style="padding:10px 16px;background:var(--crimson);color:white;
+                   border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">
+      Centrer carte
+    </button>
+    <button type="button" onclick="voirTousLesdonneurs()"
+            style="padding:10px 14px;background:rgba(26,92,139,0.1);color:#1A5C8B;
+                   border:1px solid #1A5C8B;border-radius:8px;font-size:13px;cursor:pointer;">
+      Vue globale
+    </button>
+  </div>
+  <!-- Suggestions dropdown -->
+  <div id="mapSuggestions"
+       style="display:none;position:absolute;background:white;border:1px solid var(--border);
+              border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.1);
+              z-index:2000;max-height:220px;overflow-y:auto;min-width:400px;">
+  </div>
+</div>
+
+<!-- CARTE LEAFLET -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div id="map" style="height:520px;border-radius:12px;border:1px solid var(--border);
+     margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);"></div>
+
+{% if total_donneurs == 0 %}
+<div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);
+            border-radius:10px;padding:14px;font-size:13px;color:var(--gold);">
+  <i class="bi bi-exclamation-triangle"></i>
+  Aucun donneur avec coordonnées GPS.
+  <a href="{% url 'donneur_list' %}" style="color:var(--crimson);">
+    Ajoutez des coordonnées géographiques aux donneurs
+  </a> pour les afficher sur la carte.
+</div>
+{% endif %}
+
 <script>
-    // Attendre que la page soit complètement chargée
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Initialisation de la carte...');
+document.addEventListener('DOMContentLoaded', function () {
+  const donneursData = {{ donneurs_json|safe }};
+  const centreLat = {{ centre_lat|default:-4.2634 }};
+  const centreLon = {{ centre_lon|default:15.2429 }};
 
-        // Données des donneurs
-        var donneursData = {{ donneurs_json|safe }};
-        console.log('Nombre de donneurs:', donneursData.length);
+  // Initialisation carte
+  const map = L.map('map').setView([centreLat, centreLon], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+  L.control.scale({ imperial: false }).addTo(map);
 
-        // Coordonnées du centre
-        var centreLat = {{ centre_lat|default:-4.2634 }};
-        var centreLon = {{ centre_lon|default:15.2429 }};
+  // Marqueur CNTS
+  const centreIcon = L.divIcon({
+    className: '',
+    html: '<div style="background:#C0152A;color:white;padding:6px 10px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🩸 CNTS</div>',
+    iconAnchor: [20, 12]
+  });
+  L.marker([centreLat, centreLon], { icon: centreIcon })
+    .addTo(map)
+    .bindPopup('<b>Centre National de Transfusion Sanguine</b><br>Brazzaville, Congo');
 
-        // Initialisation de la carte
-        var map = L.map('map').setView([centreLat, centreLon], 13);
+  // Couleurs par groupe sanguin
+  function getColor(groupe) {
+    if (!groupe || groupe === '?') return '#95a5a6';
+    if (groupe.startsWith('AB')) return '#f39c12';
+    if (groupe.startsWith('A'))  return '#3498db';
+    if (groupe.startsWith('B'))  return '#2ecc71';
+    if (groupe.startsWith('O'))  return '#e74c3c';
+    return '#95a5a6';
+  }
 
-        // Ajouter le fond de carte
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-        }).addTo(map);
-
-        // Ajouter un marqueur pour le centre CNTS
-        var centreIcon = L.divIcon({
-            className: 'custom-div-icon',
-            html: '<div style="background-color: #e74c3c; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><i class="bi bi-hospital" style="color: white; font-size: 18px;"></i></div>',
-            iconSize: [32, 32],
-            popupAnchor: [0, -16]
-        });
-
-        L.marker([centreLat, centreLon], {icon: centreIcon})
-            .addTo(map)
-            .bindPopup('<b>{{ centre_nom }}</b><br>Centre National de Transfusion Sanguine<br>Brazzaville, Congo');
-
-        // Fonction pour obtenir la couleur selon le groupe sanguin
-        function getMarkerColor(groupe) {
-            if (!groupe || groupe === '?') return '#95a5a6';
-            if (groupe.startsWith('O')) return '#e74c3c';
-            if (groupe.startsWith('A')) return '#3498db';
-            if (groupe.startsWith('B')) return '#2ecc71';
-            if (groupe.startsWith('AB')) return '#f39c12';
-            return '#95a5a6';
-        }
-
-        // Ajouter les marqueurs des donneurs
-        var markers = [];
-        donneursData.forEach(function(donneur) {
-            if (donneur.lat && donneur.lon) {
-                var color = getMarkerColor(donneur.groupe);
-                var icon = L.divIcon({
-                    className: 'custom-div-icon',
-                    html: `<div style="background-color: ${color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); font-weight: bold; color: white; font-size: 11px;">${donneur.groupe || '?'}</div>`,
-                    iconSize: [28, 28],
-                    popupAnchor: [0, -14]
-                });
-
-                var popupContent = `
-                    <div style="min-width: 200px;">
-                        <strong>${donneur.nom}</strong><br>
-                        <i class="bi bi-droplet"></i> <strong>Groupe:</strong> ${donneur.groupe || 'Non déterminé'}<br>
-                        <i class="bi bi-geo-alt"></i> <strong>Quartier:</strong> ${donneur.quartier || 'Non renseigné'}<br>
-                        <i class="bi bi-check-circle"></i> <strong>Peut donner:</strong> ${donneur.peut_donner ? '✅ Oui' : '❌ Non'}<br>
-                        ${donneur.est_risque ? '<span class="badge badge-danger">⚠️ Donneur à risque</span><br>' : ''}
-                        <hr class="my-2">
-                        <a href="/donneurs/${donneur.id}/" class="btn btn-sm btn-primary" style="width: 100%;">Voir détails</a>
-                    </div>
-                `;
-
-                var marker = L.marker([donneur.lat, donneur.lon], {icon: icon})
-                    .addTo(map)
-                    .bindPopup(popupContent);
-
-                markers.push(marker);
-            }
-        });
-
-        console.log('Marqueurs ajoutés:', markers.length);
-
-        // Ajuster la vue pour voir tous les marqueurs s'il y en a
-        if (markers.length > 0) {
-            var group = L.featureGroup(markers);
-            map.fitBounds(group.getBounds().pad(0.1));
-        } else {
-            // Si pas de marqueurs, centrer sur Brazzaville
-            map.setView([centreLat, centreLon], 12);
-        }
-
-        // Ajouter une échelle
-        L.control.scale().addTo(map);
+  // Ajout des marqueurs donneurs
+  const markers = [];
+  donneursData.forEach(function (d) {
+    if (!d.lat || !d.lon) return;
+    const color = getColor(d.groupe);
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:${color};color:white;width:30px;height:30px;
+             border-radius:50%;display:flex;align-items:center;justify-content:center;
+             font-size:10px;font-weight:700;border:2px solid white;
+             box-shadow:0 2px 6px rgba(0,0,0,0.25);">${d.groupe||'?'}</div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      popupAnchor: [0, -16],
     });
+    const popup = `
+      <div style="min-width:200px;font-family:Arial,sans-serif;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">${d.nom}</div>
+        <div style="font-size:12px;color:#666;margin-bottom:3px;">
+          🩸 Groupe : <strong style="color:${color};">${d.groupe||'Non déterminé'}</strong>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:3px;">
+          📍 Quartier : ${d.quartier||'Non renseigné'}
+        </div>
+        <div style="font-size:12px;margin-bottom:8px;">
+          ${d.peut_donner
+            ? '<span style="color:#1A7A4A;font-weight:700;">✅ Peut donner</span>'
+            : '<span style="color:#C0152A;">⏳ Délai de carence</span>'}
+        </div>
+        <a href="/donneurs/${d.id}/"
+           style="display:block;text-align:center;background:#C0152A;color:white;
+                  padding:6px;border-radius:6px;font-size:12px;font-weight:700;
+                  text-decoration:none;">
+          Voir le dossier
+        </a>
+      </div>
+    `;
+    const m = L.marker([d.lat, d.lon], { icon })
+      .addTo(map)
+      .bindPopup(popup);
+    markers.push(m);
+  });
+
+  // Ajuster la vue sur tous les marqueurs
+  window.voirTousLesdonneurs = function () {
+    if (markers.length > 0) {
+      const group = L.featureGroup(markers);
+      map.fitBounds(group.getBounds().pad(0.1));
+    } else {
+      map.setView([centreLat, centreLon], 12);
+    }
+  };
+  if (markers.length > 0) voirTousLesdonneurs();
+
+  // ── RECHERCHE NOMINATIM DYNAMIQUE ──
+  let searchTimer = null;
+  document.getElementById('mapSearch').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    const q = this.value.trim();
+    if (q.length >= 3) {
+      searchTimer = setTimeout(() => rechercherSurCarte(q), 400);
+    } else {
+      document.getElementById('mapSuggestions').style.display = 'none';
+    }
+  });
+
+  window.rechercherSurCarte = async function (query) {
+    const q = query || document.getElementById('mapSearch').value.trim();
+    if (!q) return;
+    const fullQ = q.toLowerCase().includes('brazzaville') ? q : q + ' Brazzaville Congo';
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullQ)}&limit=5&countrycodes=cg`,
+        { headers: { 'Accept-Language': 'fr' } }
+      );
+      const data = await res.json();
+      const div = document.getElementById('mapSuggestions');
+      if (!data.length) {
+        div.innerHTML = '<div style="padding:10px;font-size:12px;color:#999;">Aucun résultat pour cette zone</div>';
+        div.style.display = 'block';
+        return;
+      }
+      div.innerHTML = data.map(r =>
+        `<div onclick="centrerSur(${r.lat}, ${r.lon}, '${r.display_name.replace(/'/g,"\\'")}')"
+              style="padding:10px 14px;cursor:pointer;font-size:12px;
+                     border-bottom:1px solid #eee;"
+              onmouseover="this.style.background='#FFF0F0'"
+              onmouseout="this.style.background='white'">
+           <div style="font-weight:600;">📍 ${r.display_name.split(',')[0]}</div>
+           <div style="color:#999;font-size:11px;">${r.display_name}</div>
+         </div>`
+      ).join('');
+      div.style.display = 'block';
+    } catch(e) {}
+  };
+
+  window.centrerSur = function (lat, lng, name) {
+    document.getElementById('mapSuggestions').style.display = 'none';
+    document.getElementById('mapSearch').value = name.split(',')[0];
+    map.setView([parseFloat(lat), parseFloat(lng)], 15);
+    L.popup().setLatLng([lat, lng])
+      .setContent(`<strong>📍 ${name.split(',')[0]}</strong>`)
+      .openOn(map);
+  };
+
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#mapSearch') && !e.target.closest('#mapSuggestions')) {
+      document.getElementById('mapSuggestions').style.display = 'none';
+    }
+  });
+});
 </script>
 {% endblock %}

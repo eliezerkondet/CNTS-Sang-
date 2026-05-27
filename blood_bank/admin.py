@@ -303,7 +303,7 @@ class TracabiliteEvenementAdmin(admin.ModelAdmin):
 @admin.register(CandidatDon)
 class CandidatDonAdmin(admin.ModelAdmin):
     list_display = ['nom_complet', 'telephone', 'type_visite', 'eligible_don', 'date_visite', 'accueilli_par']
-    list_filter = ['type_visite', 'eligible_don', 'age_ok', 'poids_ok']
+    list_filter = ['type_visite', 'eligible_don', 'age_ok', 'bonne_sante', 'pas_don_recent']  # ← corrigé ici
     search_fields = ['nom_complet', 'telephone', 'notes']
     readonly_fields = ['date_visite', 'eligible_don']
 
@@ -312,7 +312,7 @@ class CandidatDonAdmin(admin.ModelAdmin):
             'fields': ('nom_complet', 'telephone', 'type_visite', 'accueilli_par')
         }),
         ('Critères d\'éligibilité', {
-            'fields': ('age_ok', 'poids_ok', 'bonne_sante', 'pas_don_recent')
+            'fields': ('age_ok', 'bonne_sante', 'pas_don_recent')  # ← poids_ok enlevé
         }),
         ('Résultat', {
             'fields': ('eligible_don', 'donneur_associe', 'notes')
@@ -324,4 +324,4 @@ class CandidatDonAdmin(admin.ModelAdmin):
 
 
 # Import pour timezone dans l'action envoyer_message
-from django.utils import timezone
+from django.utils import timezone 

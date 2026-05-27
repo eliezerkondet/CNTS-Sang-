@@ -1,25 +1,24 @@
 {% extends 'blood_bank/base.html' %}
-{% block title %}Examen Médical — {{ donneur.nom_complet }}{% endblock %}
-{% block page_title %}Entretien Médical Pré-Don{% endblock %}
+{% block title %}Examen Médical — {{ candidat.nom_complet }}{% endblock %}
+{% block page_title %}Entretien Médical Pré-Don (Candidat){% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
     <div class="page-title">Évaluation d'aptitude au don</div>
     <div class="page-subtitle">
-      Donneur : <strong style="color:var(--crimson);">{{ donneur.nom_complet }}</strong> 
-      ({{ donneur.code_unique }})
+      Candidat : <strong style="color:var(--crimson);">{{ candidat.nom_complet }}</strong>
     </div>
   </div>
-  <a href="{% url 'donneur_detail' donneur.pk %}" class="btn-sm-ghost">
-    <i class="bi bi-arrow-left"></i> Retour au dossier
+  <a href="{% url 'examen_candidats' %}" class="btn-sm-ghost">
+    <i class="bi bi-arrow-left"></i> Retour à la liste
   </a>
 </div>
 
 <div class="card mb-4" style="border-left: 4px solid var(--info); background: rgba(26,92,139,0.05);">
   <div style="font-size:13px;color:var(--slate);padding:10px;">
     ℹ️ <strong>Directives CNTS :</strong> Le médecin doit s'assurer que TOUS les critères de santé sont respectés. 
-    Un seul critère non coché (sauf le groupe sanguin) entraînera l'inaptitude du donneur.
+    Un seul critère non coché (sauf le groupe sanguin) entraînera l'inaptitude du candidat.
   </div>
 </div>
 
@@ -41,27 +40,27 @@
         <i class="bi bi-activity text-danger" style="font-size:18px;"></i>
         <div style="flex:1;">
           <label class="form-label" style="margin-bottom:0;">Tension Artérielle (ex: 12/8)</label>
-          <input type="text" name="tension" class="form-control form-control-sm" placeholder="Saisir la tension" value="{{ examen.tension|default:'' }}" style="margin-top:5px;">
+          <input type="text" name="tension" class="form-control form-control-sm" placeholder="Saisir la tension" value="{{ candidat.tension|default:'' }}" style="margin-top:5px;">
         </div>
       </div>
 
       <div class="form-check custom-check mt-2">
-        <input class="form-check-input" type="checkbox" id="tension_ok" name="tension_ok" {% if examen.tension_ok or is_new %}checked{% endif %}>
+        <input class="form-check-input" type="checkbox" id="tension_ok" name="tension_ok" {% if candidat.tension_ok %}checked{% endif %}>
         <label class="form-check-label fw-bold" for="tension_ok">Tension dans les normes (10/6 à 18/10)</label>
       </div>
 
       <div class="form-check custom-check">
-        <input class="form-check-input" type="checkbox" id="poids_ok" name="poids_ok" {% if examen.poids_ok or is_new %}checked{% endif %}>
+        <input class="form-check-input" type="checkbox" id="poids_ok" name="poids_ok" {% if candidat.poids_ok %}checked{% endif %}>
         <label class="form-check-label fw-bold" for="poids_ok">Poids ≥ 50 kg</label>
       </div>
       
       <div class="form-check custom-check">
-        <input class="form-check-input" type="checkbox" id="hemoglobine_ok" name="hemoglobine_ok" {% if examen.hemoglobine_ok or is_new %}checked{% endif %}>
+        <input class="form-check-input" type="checkbox" id="hemoglobine_ok" name="hemoglobine_ok" {% if candidat.hemoglobine_ok %}checked{% endif %}>
         <label class="form-check-label fw-bold" for="hemoglobine_ok">Taux d'Hémoglobine suffisant</label>
       </div>
 
       <div class="form-check custom-check">
-        <input class="form-check-input" type="checkbox" id="pas_fievre" name="pas_fievre" {% if examen.pas_fievre or is_new %}checked{% endif %}>
+        <input class="form-check-input" type="checkbox" id="pas_fievre" name="pas_fievre" {% if candidat.pas_fievre %}checked{% endif %}>
         <label class="form-check-label fw-bold" for="pas_fievre">Apyrétique (Pas de fièvre)</label>
       </div>
     </div>
@@ -71,22 +70,22 @@
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;">Antécédents & Risques</div>
       
       <div class="form-check custom-check">
-        <input class="form-check-input" type="checkbox" id="pas_de_maladie" name="pas_de_maladie" {% if examen.pas_de_maladie or is_new %}checked{% endif %}>
+        <input class="form-check-input" type="checkbox" id="pas_de_maladie" name="pas_de_maladie" {% if candidat.pas_de_maladie %}checked{% endif %}>
         <label class="form-check-label fw-bold" for="pas_de_maladie">Pas de maladie chronique / IST</label>
       </div>
       
       <div class="form-check custom-check">
-        <input class="form-check-input" type="checkbox" id="pas_de_medicament" name="pas_de_medicament" {% if examen.pas_de_medicament or is_new %}checked{% endif %}>
+        <input class="form-check-input" type="checkbox" id="pas_de_medicament" name="pas_de_medicament" {% if candidat.pas_de_medicament %}checked{% endif %}>
         <label class="form-check-label fw-bold" for="pas_de_medicament">Aucun traitement incompatible</label>
       </div>
 
       <div class="form-check custom-check">
-        <input class="form-check-input" type="checkbox" id="pas_tuberculose" name="pas_tuberculose" {% if examen.pas_tuberculose or is_new %}checked{% endif %}>
+        <input class="form-check-input" type="checkbox" id="pas_tuberculose" name="pas_tuberculose" {% if candidat.pas_tuberculose %}checked{% endif %}>
         <label class="form-check-label fw-bold" for="pas_tuberculose">Aucun antécédent de Tuberculose</label>
       </div>
 
       <div class="form-check custom-check">
-        <input class="form-check-input" type="checkbox" id="pas_antecedents_risque" name="pas_antecedents_risque" {% if examen.pas_antecedents_risque or is_new %}checked{% endif %}>
+        <input class="form-check-input" type="checkbox" id="pas_antecedents_risque" name="pas_antecedents_risque" {% if candidat.pas_antecedents_risque %}checked{% endif %}>
         <label class="form-check-label fw-bold" for="pas_antecedents_risque">Pas de comportement à risque (Tatouage < 6 mois, Voyage)</label>
       </div>
     </div>
@@ -98,7 +97,7 @@
     <select name="groupe_sanguin_examen" class="form-select" style="max-width:300px;">
       <option value="">-- À confirmer par le laboratoire --</option>
       {% for code, label in groupe_choices %}
-      <option value="{{ code }}" {% if donneur.groupe_sanguin == code %}selected{% endif %}>{{ label }}</option>
+      <option value="{{ code }}" {% if candidat.groupe_sanguin == code %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
     <div style="font-size:11px;color:var(--muted);margin-top:5px;">* La confirmation définitive (double détermination) se fera lors de l'analyse de la poche par le technicien.</div>
@@ -106,8 +105,8 @@
 
   <!-- Motif Inaptitude -->
   <div style="margin-bottom:30px;">
-    <label class="form-label fw-bold text-danger">Motif d'inaptitude (À remplir UNIQUEMENT si le donneur est refusé) :</label>
-    <textarea name="motif_inaptitude" class="form-control" rows="3" placeholder="Ex: Anémie légère (Hb = 10 g/dL), Tension trop basse (9/5)...">{{ examen.motif_inaptitude|default:'' }}</textarea>
+    <label class="form-label fw-bold text-danger">Motif d'inaptitude (À remplir UNIQUEMENT si le candidat est refusé) :</label>
+    <textarea name="motif_inaptitude" class="form-control" rows="3" placeholder="Ex: Anémie légère (Hb = 10 g/dL), Tension trop basse (9/5)...">{{ candidat.motif_inaptitude|default:'' }}</textarea>
   </div>
 
   <div style="display:flex;gap:15px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:20px;">

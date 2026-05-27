@@ -1,0 +1,130 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Pooling Plaquettaire - CNTS{% endblock %}
+{% block page_title %}Création de Concentré Plaquettaire (Pooling){% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Pooling Plaquettaire</div>
+    <div class="page-subtitle">Sélectionnez 4 à 6 poches de Sang Total du même groupe sanguin</div>
+  </div>
+  <a href="{% url 'poche_list' %}" class="btn-sm-ghost">
+    <i class="bi bi-arrow-left"></i> Retour au stock
+  </a>
+</div>
+
+<div class="card mb-4" style="border-left:4px solid var(--warning); background: rgba(201,168,76,0.05);">
+  <div style="font-size:13px;color:var(--slate);padding:5px;">
+    ⚠️ <strong>Règle Médicale :</strong> Le pooling nécessite un minimum de <strong>4 poches</strong> de Sang Total 
+    strictement du <strong>même groupe sanguin</strong>. Les poches sources seront définitivement consommées.
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  
+  {% if poches_par_groupe %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:20px;">
+      
+      {% for groupe, poches in poches_par_groupe.items %}
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px;border-bottom:1px solid var(--border);padding-bottom:10px;">
+          <div style="font-size:16px;font-weight:800;color:var(--charcoal);">
+            Groupe <span style="color:var(--crimson);">{{ groupe }}</span>
+          </div>
+          <span class="badge bg-secondary">{{ poches.count }} poches dispo</span>
+        </div>
+
+        <div style="max-height: 250px; overflow-y: auto; padding-right: 5px;">
+          {% for poche in poches %}
+          <div style="display:flex;align-items:center;gap:12px;padding:12px;
+               border:1px solid var(--border);border-radius:8px;margin-bottom:8px;
+               background:var(--warm-white); transition: all 0.2s;"
+               class="poche-item">
+            
+            <input type="checkbox" name="poches_sources" value="{{ poche.pk }}"
+                   id="poche_{{ poche.pk }}" class="poche-checkbox group-{{ groupe|slugify }}"
+                   style="width:18px;height:18px;accent-color:var(--crimson);"
+                   onchange="verifierSelection('group-{{ groupe|slugify }}')">
+            
+            <label for="poche_{{ poche.pk }}" style="font-size:13px;cursor:pointer;flex:1;display:flex;flex-direction:column;">
+              <span class="mono" style="font-weight:700;color:var(--charcoal);">{{ poche.code_barre }}</span>
+              <span style="font-size:11px;color:var(--muted);">
+                Prélevée le {{ poche.date_prelevement|date:"d/m/Y" }} • {{ poche.volume_ml }} mL
+              </span>
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      
+    </div>
+
+    <div class="card mt-4" style="text-align:center; background: var(--warm-white);">
+      <div id="compteur-selection" style="font-size:14px;font-weight:700;margin-bottom:15px;color:var(--slate);">
+        Sélectionnez des poches pour commencer...
+      </div>
+      <button type="submit" id="btn-submit" class="btn-blood" disabled
+              onclick="return confirm('Confirmer la création du concentré plaquettaire ? Les poches sources seront détruites.')">
+        <i class="bi bi-droplet-half"></i> Créer le Concentré Plaquettaire
+      </button>
+    </div>
+
+  {% else %}
+    <div class="card text-center" style="padding:40px;">
+      <i class="bi bi-exclamation-circle text-warning" style="font-size:40px;margin-bottom:15px;"></i>
+      <h5 style="font-weight:700;color:var(--charcoal);">Stock Insuffisant</h5>
+      <p style="color:var(--muted);font-size:13px;">
+        Il n'y a actuellement aucun groupe sanguin possédant au moins 4 poches de Sang Total disponibles pour effectuer un pooling.
+      </p>
+    </div>
+  {% endif %}
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Script intelligent pour empêcher de sélectionner des groupes différents 
+  // et compter le nombre de poches
+  function verifierSelection(groupeClasse) {
+    const toutesCheckboxes = document.querySelectorAll('.poche-checkbox');
+    const checkboxesGroupe = document.querySelectorAll('.' + groupeClasse + ':checked');
+    const totalCochees = document.querySelectorAll('.poche-checkbox:checked').length;
+    const btnSubmit = document.getElementById('btn-submit');
+    const compteur = document.getElementById('compteur-selection');
+
+    // Si on a coché au moins une poche d'un groupe, on grise les autres groupes
+    if (totalCochees > 0) {
+      toutesCheckboxes.forEach(cb => {
+        if (!cb.classList.contains(groupeClasse)) {
+          cb.disabled = true;
+          cb.closest('.poche-item').style.opacity = '0.5';
+        }
+      });
+    } else {
+      // Si on décoche tout, on libère tous les groupes
+      toutesCheckboxes.forEach(cb => {
+        cb.disabled = false;
+        cb.closest('.poche-item').style.opacity = '1';
+      });
+    }
+
+    // Mise à jour du texte et du bouton
+    if (totalCochees === 0) {
+      compteur.innerHTML = "Sélectionnez des poches pour commencer...";
+      compteur.style.color = "var(--slate)";
+      btnSubmit.disabled = true;
+    } else if (totalCochees < 4) {
+      compteur.innerHTML = "⚠️ " + totalCochees + " poche(s) sélectionnée(s). Il en faut au minimum 4.";
+      compteur.style.color = "var(--crimson)";
+      btnSubmit.disabled = true;
+    } else {
+      compteur.innerHTML = "✅ " + totalCochees + " poche(s) sélectionnée(s). Prêt pour le pooling.";
+      compteur.style.color = "var(--success)";
+      btnSubmit.disabled = false;
+    }
+  }
+</script>
+{% endblock %}

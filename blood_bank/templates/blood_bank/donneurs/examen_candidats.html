@@ -1,0 +1,33 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Examens médicaux à réaliser{% endblock %}
+{% block page_title %}Candidats en attente d'examen médical{% endblock %}
+
+{% block content %}
+<div class="container">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nom</th><th>Téléphone</th><th>Âge</th><th>Poids</th><th>Type</th><th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for candidat in candidats %}
+            <tr>
+                <td>{{ candidat.nom_complet }}</td>
+                <td>{{ candidat.telephone }}</td>
+                <td>{{ candidat.age }} ans</td>
+                <td>{{ candidat.poids }} kg</td>
+                <td>{{ candidat.get_type_visite_display }}</td>
+                <td>
+                    <a href="{% url 'examen_medical_candidat' candidat.pk %}" class="btn btn-sm btn-primary">
+                        🩺 Examen médical
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6">Aucun candidat en attente d'examen.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

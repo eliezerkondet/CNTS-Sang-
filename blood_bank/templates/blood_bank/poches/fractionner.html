@@ -1,0 +1,78 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Fractionnement — {{ poche.code_barre }}{% endblock %}
+{% block page_title %}Fractionnement{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Fractionnement de poche</div>
+    <div class="page-subtitle">{{ poche.code_barre }} — {{ poche.groupe_sanguin }} — {{ poche.volume_ml }} mL</div>
+  </div>
+  <a href="{% url 'poche_detail' poche.pk %}" class="btn-sm-ghost">
+    <i class="bi bi-arrow-left"></i> Retour
+  </a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <div>
+    <div class="card mb-4" style="border-left:4px solid var(--crimson);">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+        ⚠️ Le fractionnement est <strong>irréversible</strong>. La poche source sera marquée comme utilisée.
+      </div>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="card mb-4">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
+          🔬 Choisir les produits à créer
+        </div>
+        {% for code, label in types_disponibles %}
+        <div style="display:flex;align-items:center;gap:12px;padding:14px;
+             border:1px solid var(--border);border-radius:8px;margin-bottom:8px;
+             background:var(--warm-white);">
+          <input type="checkbox" name="types_fractionnement" value="{{ code }}"
+                 id="type_{{ code }}" style="width:18px;height:18px;accent-color:var(--crimson);">
+          <label for="type_{{ code }}" style="font-size:13px;cursor:pointer;">
+            🩸 {{ label }}
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="submit" class="btn-blood"
+              onclick="return confirm('Confirmer le fractionnement ? La poche source sera consommée.')">
+        <i class="bi bi-scissors"></i> Fractionner la poche
+      </button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px;">📋 Poche source</div>
+    <div style="font-size:12px;display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;justify-content:space-between;">
+        <span style="color:var(--muted);">Code</span>
+        <span class="mono" style="color:var(--crimson);">{{ poche.code_barre }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="color:var(--muted);">Groupe</span>
+        <strong>{{ poche.groupe_sanguin }}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="color:var(--muted);">Volume</span>
+        <span>{{ poche.volume_ml }} mL</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="color:var(--muted);">Donneur</span>
+        <span>{{ poche.donneur.nom_complet }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="color:var(--muted);">Expire</span>
+        <span>{{ poche.date_expiration|date:"d/m/Y" }}</span>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding:10px;background:rgba(26,122,74,0.06);border-radius:8px;">
+      <div style="font-size:11px;color:var(--success);font-weight:700;">✅ Tous les tests négatifs</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

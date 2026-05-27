@@ -1,0 +1,24 @@
+{% extends 'blood_bank/base.html' %}
+{% block content %}
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <h4>Prélèvement - {{ candidat.nom_complet }}</h4>
+        </div>
+        <div class="card-body">
+            <p><strong>Téléphone:</strong> {{ candidat.telephone }}</p>
+            <p><strong>Âge:</strong> {{ candidat.age }} ans</p>
+            <p><strong>Poids:</strong> {{ candidat.poids }} kg</p>
+            <p><strong>Type:</strong> {{ candidat.get_type_visite_display }}</p>
+            
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success btn-lg">
+                    ✅ Confirmer le prélèvement
+                </button>
+                <a href="{% url 'candidats_a_prelever' %}" class="btn btn-secondary">Annuler</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

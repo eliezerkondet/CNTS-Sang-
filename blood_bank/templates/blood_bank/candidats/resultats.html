@@ -1,0 +1,76 @@
+{% extends 'blood_bank/base.html' %}
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">📋 Résultats de votre don</h4>
+                </div>
+                <div class="card-body">
+                    <h5>Bonjour {{ candidat.nom_complet }},</h5>
+                    <p>Voici les résultats de votre don effectué le {{ candidat.date_visite|date:"d/m/Y" }}.</p>
+                    
+                    <hr>
+                    
+                    {% if poche %}
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>Code de la poche</th>
+                                <td><code>{{ poche.code_barre }}</code></td>
+                            </tr>
+                            <tr>
+                                <th>Date de prélèvement</th>
+                                <td>{{ poche.date_prelevement|date:"d/m/Y" }}</td>
+                            </tr>
+                            {% if poche.groupe_sanguin %}
+                            <tr>
+                                <th>Groupe sanguin</th>
+                                <td><span class="badge bg-danger">{{ poche.groupe_sanguin }}</span></td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <th>Statut</th>
+                                <td>
+                                    {% if poche.statut == 'disponible' %}
+                                        <span class="badge bg-success">✅ Votre sang est conforme</span>
+                                    {% elif poche.statut == 'rejetee' %}
+                                        <span class="badge bg-danger">⚠️ Anomalies détectées</span>
+                                    {% elif poche.statut == 'en_analyse' %}
+                                        <span class="badge bg-warning">🔬 En cours d'analyse</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ poche.get_statut_display }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        {% if poche.statut == 'disponible' %}
+                            <div class="alert alert-success">
+                                ✅ Merci pour votre don ! Votre sang est conforme.
+                            </div>
+                        {% elif poche.statut == 'rejetee' %}
+                            <div class="alert alert-danger">
+                                ⚠️ Des anomalies ont été détectées. Consultez un médecin.
+                            </div>
+                        {% elif poche.statut == 'en_analyse' %}
+                            <div class="alert alert-warning">
+                                🔬 Vos résultats sont en cours d'analyse. Revenez dans 48h.
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            Aucune poche associée. Contactez le CNTS.
+                        </div>
+                    {% endif %}
+                    
+                    <hr>
+                    <div class="text-center">
+                        <a href="/" class="btn btn-outline-primary">Retour à l'accueil</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

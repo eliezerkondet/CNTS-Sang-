@@ -6,6 +6,7 @@
     <h2>Accueil des candidats</h2>
 
     <div class="row">
+        <!-- Colonne de gauche : Formulaire d'enregistrement -->
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
@@ -15,19 +16,30 @@
                     <form method="post">
                         {% csrf_token %}
 
-                        <div class="form-group">
-                            <label>Nom complet *</label>
+                        <div class="mb-3">
+                            <label class="form-label">Nom complet *</label>
                             <input type="text" name="nom_complet" class="form-control" required>
                         </div>
 
-                        <div class="form-group">
-                            <label>Téléphone *</label>
+                        <div class="mb-3">
+                            <label class="form-label">Téléphone *</label>
                             <input type="tel" name="telephone" class="form-control" required>
                         </div>
 
-                        <div class="form-group">
-                            <label>Type de visite</label>
-                            <select name="type_visite" class="form-control">
+                        <div class="mb-3">
+                            <label class="form-label">Date de naissance *</label>
+                            <input type="date" name="date_naissance" class="form-control" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Poids (kg) *</label>
+                            <input type="number" name="poids" class="form-control" step="0.1" min="30" max="200" required>
+                            <small class="text-muted">Minimum 50 kg pour être éligible</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Type de visite</label>
+                            <select name="type_visite" class="form-select">
                                 {% for value, label in type_choices %}
                                     <option value="{{ value }}">{{ label }}</option>
                                 {% endfor %}
@@ -36,17 +48,12 @@
 
                         <div class="card mt-3">
                             <div class="card-header">
-                                <h5>Critères d'éligibilité</h5>
+                                <h5>Critères d'éligibilité (à confirmer par l'infirmier)</h5>
                             </div>
                             <div class="card-body">
                                 <div class="form-check">
                                     <input type="checkbox" class="form-check-input" id="age_ok" name="age_ok">
-                                    <label class="form-check-label" for="age_ok">Âge entre 18 et 65 ans</label>
-                                </div>
-
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" id="poids_ok" name="poids_ok">
-                                    <label class="form-check-label" for="poids_ok">Poids ≥ 50 kg</label>
+                                    <label class="form-check-label" for="age_ok">Âge entre 18 et 65 ans (vérifié)</label>
                                 </div>
 
                                 <div class="form-check">
@@ -61,17 +68,18 @@
                             </div>
                         </div>
 
-                        <div class="form-group mt-3">
-                            <label>Notes</label>
+                        <div class="mb-3 mt-3">
+                            <label class="form-label">Notes</label>
                             <textarea name="notes" class="form-control" rows="3"></textarea>
                         </div>
 
-                        <button type="submit" class="btn btn-primary mt-3">Enregistrer</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
                     </form>
                 </div>
             </div>
         </div>
 
+        <!-- Colonne de droite : Liste des candidats du jour -->
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
@@ -81,16 +89,47 @@
                     {% for candidat in candidats_jour %}
                         <div class="border-bottom mb-3 pb-2">
                             <strong>{{ candidat.nom_complet }}</strong><br>
-                            Tél: {{ candidat.telephone }}<br>
-                            Type: {{ candidat.get_type_visite_display }}<br>
-                            {% if candidat.eligible_don %}
-                                <span class="badge badge-success">Éligible au don</span>
+                            📞 Tél: {{ candidat.telephone }}<br>
+                            🎂 Né(e) le: {{ candidat.date_naissance|date:"d/m/Y" }}<br>
+                            ⚖️ Poids: {{ candidat.poids }} kg<br>
+                            🏷️ Type: {{ candidat.get_type_visite_display }}<br>
+                            
+                            {# Affichage de l'éligibilité #}
+                            {% if candidat.age >= 18 and candidat.age <= 65 and candidat.poids >= 50 %}
+                                <span class="badge bg-success">✅ Éligible au don</span>
                             {% else %}
-                                <span class="badge badge-danger">Non éligible</span>
+                                <span class="badge bg-danger">⚠️ Non éligible</span>
                             {% endif %}
+                            
+                            {# Code d'accès pour ce candidat #}
+                            {% if candidat.code_acces %}
+                                <div class="alert alert-success mt-2 p-2 small">
+                                    <i class="bi bi-key-fill"></i> 
+                                    <strong>Code d'accès :</strong> <code>{{ candidat.code_acces }}</code><br>
+                                    <small>
+                                        🔗 Pour voir vos résultats :<br>
+                                        <strong>Cliquez sur "Mes résultats" dans le menu</strong><br>
+                                        ou tapez : /resultats/{{ candidat.code_acces }}/
+                                    </small>
+                                </div>
+                            {% endif %}
+                            
+                            {# Statut de la poche #}
+                            {% with poche=candidat.poches_prelevees.first %}
+                                {% if poche %}
+                                    <div class="alert alert-info mt-2 p-2 small">
+                                        🩸 Poche: {{ poche.code_barre }}<br>
+                                        Statut: {{ poche.get_statut_display }}
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-warning mt-2 p-2 small">
+                                        ⏳ Aucun prélèvement effectué.
+                                    </div>
+                                {% endif %}
+                            {% endwith %}
                         </div>
                     {% empty %}
-                        <p>Aucun candidat aujourd'hui</p>
+                        <p class="text-muted">Aucun candidat enregistré aujourd'hui.</p>
                     {% endfor %}
                 </div>
             </div>

@@ -77,27 +77,31 @@ class DonneurForm(forms.ModelForm):
 class PocheSangForm(forms.ModelForm):
     class Meta:
         model = PocheSang
-        fields = ['donneur', 'date_prelevement', 'type_produit', 'volume_ml', 'notes']
+        # ON ENLÈVE 'type_produit' DE LA LISTE DES CHAMPS AFFICHÉS !
+        fields = ['code_barre', 'donneur', 'volume_ml', 'lieu_collecte', 'notes']
+        
         widgets = {
-            'donneur': forms.Select(attrs={'class': 'form-select'}),
-            'date_prelevement': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'type_produit': forms.Select(attrs={'class': 'form-select'}),
-            'volume_ml': forms.NumberInput(attrs={'class': 'form-control', 'min': 300, 'max': 600}),
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'date_prelevement': forms.DateInput(attrs={'type': 'date'}),
+            'date_expiration': forms.DateInput(attrs={'type': 'date'}),
+            'notes': forms.Textarea(attrs={'rows': 3}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['type_produit'].help_text = "Type de produit sanguin à collecter"
+        # On peut aussi ajouter des classes Bootstrap pour que ça soit joli
+        for field in self.fields:
+            self.fields[field].widget.attrs.update({'class': 'form-control'})
 
+# forms.py - Modifiez votre formulaire
 
 class AnalysePocheForm(forms.ModelForm):
     class Meta:
         model = PocheSang
         fields = [
-            'test_vih', 'test_hepatite_b', 'test_hepatite_c', 'test_syphilis',
-            'test_paludisme', 'test_chagas', 'test_htlv', 'test_cytomegalovirus',
-            'test_ebv', 'test_parvovirus', 'notes'
+            'test_vih', 'test_hepatite_b', 'test_hepatite_c',
+            'test_syphilis', 'test_paludisme', 'test_chagas',
+            'test_htlv', 'test_cytomegalovirus', 'test_ebv',
+            'test_parvovirus', 'notes'
         ]
         widgets = {
             'test_vih': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -110,24 +114,20 @@ class AnalysePocheForm(forms.ModelForm):
             'test_cytomegalovirus': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'test_ebv': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'test_parvovirus': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         labels = {
-            'test_vih': 'Test VIH négatif ✓',
-            'test_hepatite_b': 'Test Hépatite B négatif ✓',
-            'test_hepatite_c': 'Test Hépatite C négatif ✓',
-            'test_syphilis': 'Test Syphilis négatif ✓',
-            'test_paludisme': 'Test Paludisme négatif ✓',
-            'test_chagas': 'Test Maladie de Chagas négatif ✓',
-            'test_htlv': 'Test HTLV négatif ✓',
-            'test_cytomegalovirus': 'Test Cytomégalovirus négatif ✓',
-            'test_ebv': 'Test EBV négatif ✓',
-            'test_parvovirus': 'Test Parvovirus B19 négatif ✓',
+            'test_vih': 'Test VIH négatif',
+            'test_hepatite_b': 'Test Hépatite B négatif',
+            'test_hepatite_c': 'Test Hépatite C négatif',
+            'test_syphilis': 'Test Syphilis négatif',
+            'test_paludisme': 'Test Paludisme négatif',
+            'test_chagas': 'Test Maladie de Chagas négatif',
+            'test_htlv': 'Test HTLV négatif',
+            'test_cytomegalovirus': 'Test Cytomégalovirus négatif',
+            'test_ebv': 'Test Virus Epstein-Barr négatif',
+            'test_parvovirus': 'Test Parvovirus B19 négatif',
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['notes'].help_text = "Notes supplémentaires sur l'analyse"
 
 
 class DemandeTransfusionForm(forms.ModelForm):
@@ -324,22 +324,29 @@ class CandidatDonForm(forms.ModelForm):
     class Meta:
         model = CandidatDon
         fields = [
-            'nom_complet', 'telephone', 'type_visite', 'age_ok', 'poids_ok',
-            'bonne_sante', 'pas_don_recent', 'notes'
+            'nom_complet', 
+            'telephone', 
+            'date_naissance',
+            'poids',
+            'type_visite', 
+            'age_ok', 
+            'bonne_sante', 
+            'pas_don_recent', 
+            'notes'
         ]
         widgets = {
             'nom_complet': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nom et prénom'}),
             'telephone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+242 XX XXX XXXX'}),
+            'date_naissance': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'poids': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Poids en kg', 'min': 30, 'max': 200}),
             'type_visite': forms.Select(attrs={'class': 'form-select'}),
             'age_ok': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'poids_ok': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'bonne_sante': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'pas_don_recent': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
         labels = {
-            'age_ok': 'Âge entre 18 et 65 ans',
-            'poids_ok': 'Poids ≥ 50 kg',
+            'age_ok': 'Âge vérifié (entre 18 et 65 ans)',
             'bonne_sante': 'Bonne santé générale',
             'pas_don_recent': 'Pas de don dans les 56 derniers jours',
         }

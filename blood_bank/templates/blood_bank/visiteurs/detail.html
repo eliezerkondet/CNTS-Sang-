@@ -1,0 +1,44 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Visiteur - {{ visiteur.nom_complet }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ visiteur.nom_complet }}</div>
+    <div class="page-subtitle">Donneur familial</div>
+  </div>
+  <a href="{% url 'visiteur_list' %}" class="btn-sm-ghost"><i class="bi bi-arrow-left"></i> Retour</a>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">👤 Donneur</div>
+      <div class="card-body">
+        <p><strong>Nom complet :</strong> {{ visiteur.nom_complet }}</p>
+        <p><strong>Téléphone :</strong> {{ visiteur.telephone }}</p>
+        <p><strong>Date de naissance :</strong> {{ visiteur.date_naissance|date:"d/m/Y"|default:"Non renseignée" }}</p>
+        <p><strong>Poids :</strong> {{ visiteur.poids|default:"Non renseigné" }} kg</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">🏥 Patient</div>
+      <div class="card-body">
+        <p><strong>Patient :</strong> {{ visiteur.nom_patient }} {{ visiteur.prenom_patient }}</p>
+        <p><strong>Groupe sanguin :</strong> {{ visiteur.groupe_patient|default:"Non déterminé" }}</p>
+        <p><strong>Téléphone :</strong> {{ visiteur.telephone_patient|default:"Non renseigné" }}</p>
+        <p><strong>Hôpital :</strong> {{ visiteur.hopital_patient|default:"Non renseigné" }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mt-3">
+  <a href="{% url 'visiteur_prelever' visiteur.pk %}" class="btn btn-danger">
+    🩸 Procéder au prélèvement
+  </a>
+  <a href="{% url 'visiteur_list' %}" class="btn btn-secondary">Annuler</a>
+</div>
+{% endblock %}

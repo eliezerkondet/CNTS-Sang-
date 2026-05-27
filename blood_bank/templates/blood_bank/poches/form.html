@@ -45,7 +45,8 @@
 
           <div>
             <label class="form-label">Date du prélèvement *</label>
-            {{ form.date_prelevement }}
+            <input type="date" name="date_prelevement" class="form-control" 
+                   value="{{ form.date_prelevement.value|date:'Y-m-d' }}">
             {% if form.date_prelevement.errors %}
               <div style="color:var(--crimson);font-size:11px;margin-top:3px;">
                 {{ form.date_prelevement.errors.0 }}
@@ -54,15 +55,10 @@
           </div>
 
           <div>
-            <label class="form-label">Type de produit *</label>
-            {{ form.type_produit }}
-            {% if form.type_produit.errors %}
-              <div style="color:var(--crimson);font-size:11px;margin-top:3px;">
-                {{ form.type_produit.errors.0 }}
-              </div>
-            {% endif %}
+            <label class="form-label">Type de produit</label>
+            <input type="text" class="form-control" value="🩸 Sang total" readonly disabled style="background:#f8f9fa;">
             <div style="font-size:11px;color:var(--muted);margin-top:3px;">
-              {{ form.type_produit.help_text }}
+              Seul le sang total est prélevé. Les dérivés sont obtenus par fractionnement en laboratoire.
             </div>
           </div>
 
@@ -77,6 +73,25 @@
                 {{ form.volume_ml.errors.0 }}
               </div>
             {% endif %}
+          </div>
+
+          <!-- LIEU DE COLLECTE -->
+          <div style="grid-column:1/-1;">
+            <label class="form-label">Lieu de collecte</label>
+            <select name="lieu_collecte" id="id_lieu_collecte" class="form-control">
+              <option value="CNTS Brazzaville">🏥 CNTS Brazzaville</option>
+              <option value="Université Marien Ngouabi">🎓 Université Marien Ngouabi</option>
+              <option value="Église Saint-Pierre">⛪ Église Saint-Pierre</option>
+              <option value="Marché Total">🛒 Marché Total</option>
+              <option value="Hôpital Makélékélé">🏥 Hôpital Makélékélé</option>
+              <option value="autre">📍 Autre (précisez)</option>
+            </select>
+            <div id="div_autre_lieu" style="display:none; margin-top:10px;">
+              <input type="text" name="autre_lieu" class="form-control" placeholder="Précisez le lieu...">
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+              Lieu où le prélèvement a été effectué
+            </div>
           </div>
 
           <div style="grid-column:1/-1;">
@@ -201,13 +216,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('pocheForm');
     const submitBtn = document.getElementById('submitBtn');
 
+    // Gestion du lieu "Autre"
+    const lieuSelect = document.getElementById('id_lieu_collecte');
+    const divAutre = document.getElementById('div_autre_lieu');
+    
+    if (lieuSelect) {
+        lieuSelect.addEventListener('change', function() {
+            if (this.value === 'autre') {
+                divAutre.style.display = 'block';
+            } else {
+                divAutre.style.display = 'none';
+            }
+        });
+    }
+
     if (form) {
-        // Désactiver le double soumission
         form.addEventListener('submit', function(e) {
-            // Vérifier les champs requis
             const donneur = document.querySelector('#id_donneur');
-            const date = document.querySelector('#id_date_prelevement');
-            const typeProduit = document.querySelector('#id_type_produit');
+            const date = document.querySelector('input[name="date_prelevement"]');
 
             let hasError = false;
             let errorMessage = '';
@@ -218,9 +244,6 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (!date || !date.value) {
                 errorMessage = 'Veuillez renseigner la date de prélèvement';
                 hasError = true;
-            } else if (!typeProduit || !typeProduit.value) {
-                errorMessage = 'Veuillez sélectionner le type de produit';
-                hasError = true;
             }
 
             if (hasError) {
@@ -229,7 +252,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             }
 
-            // Désactiver le bouton pour éviter le double clic
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enregistrement en cours...';

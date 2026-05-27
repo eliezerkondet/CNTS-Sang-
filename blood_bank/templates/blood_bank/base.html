@@ -44,7 +44,6 @@
       overflow: hidden !important;
     }
 
-    /* ── SIDEBAR ── */
     .sidebar {
       position: fixed; top: 0; left: 0;
       width: var(--sidebar-w);
@@ -144,7 +143,6 @@
       font-family: 'JetBrains Mono', monospace;
     }
 
-    /* ── MAIN ── */
     .main-wrap {
       margin-left: var(--sidebar-w);
       min-height: 100vh;
@@ -170,7 +168,6 @@
 
     .topbar-actions { display: flex; align-items: center; gap: 10px; }
 
-    /* Nouveau style pour le menu utilisateur dans la topbar */
     .user-menu {
       display: flex;
       align-items: center;
@@ -214,7 +211,6 @@
       flex: 1; padding: 28px;
     }
 
-    /* ── CARDS ── */
     .card {
       background: white;
       border: 1px solid var(--border);
@@ -273,7 +269,6 @@
     .stat-info .stat-icon { background: rgba(26,92,139,0.1); color: var(--info); }
     .stat-info::after { background: var(--info); }
 
-    /* ── BLOOD GROUP BADGES ── */
     .blood-badge {
       display: inline-flex; align-items: center; justify-content: center;
       width: 44px; height: 44px;
@@ -287,7 +282,6 @@
     .blood-b { background: rgba(26,122,74,0.12); color: var(--success); }
     .blood-ab { background: rgba(201,168,76,0.12); color: var(--gold); }
 
-    /* ── TABLE ── */
     .table-clean {
       width: 100%; border-collapse: separate; border-spacing: 0;
     }
@@ -309,7 +303,6 @@
     .table-clean tr:last-child td { border-bottom: none; }
     .table-clean tbody tr:hover { background: rgba(192,21,42,0.02); }
 
-    /* ── FORMS ── */
     .form-control, .form-select {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -332,7 +325,6 @@
       color: var(--slate); margin-bottom: 5px;
     }
 
-    /* ── BUTTONS ── */
     .btn-blood {
       background: var(--crimson); color: white;
       border: none; border-radius: 8px;
@@ -371,7 +363,6 @@
 
     .btn-sm-ghost:hover { background: var(--charcoal); color: white; border-color: var(--charcoal); }
 
-    /* ── STATUS BADGES ── */
     .badge-status {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 3px 10px; border-radius: 20px;
@@ -388,12 +379,10 @@
     .status-livree { background: rgba(26,92,139,0.1); color: var(--info); }
     .status-validee { background: rgba(26,122,74,0.1); color: var(--success); }
 
-    /* ── URGENCE ── */
     .urgence-critique { color: var(--crimson); font-weight: 700; }
     .urgence-urgent { color: var(--gold); font-weight: 600; }
     .urgence-normal { color: var(--muted); }
 
-    /* ── ALERTS ── */
     .alert-cnts {
       border-radius: 10px; padding: 12px 16px;
       border: none; font-size: 13px;
@@ -405,7 +394,6 @@
     .alert-cnts.success { background: rgba(26,122,74,0.08); color: var(--success); }
     .alert-cnts.info { background: rgba(26,92,139,0.08); color: var(--info); }
 
-    /* ── MESSAGES DJANGO ── */
     .messages-container {
       position: fixed; top: 20px; right: 20px;
       z-index: 9999; max-width: 360px;
@@ -428,7 +416,6 @@
       to { transform: translateX(0); opacity: 1; }
     }
 
-    /* ── PAGE HEADER ── */
     .page-header {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 24px;
@@ -444,7 +431,6 @@
       margin-top: 2px;
     }
 
-    /* ── STOCK BAR ── */
     .stock-bar {
       height: 6px; background: var(--border);
       border-radius: 3px; overflow: hidden;
@@ -459,27 +445,23 @@
     .fill-warn { background: var(--gold); }
     .fill-crit { background: var(--crimson); }
 
-    /* ── SCROLLBAR ── */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-    /* ── MONO ── */
     .mono { font-family: 'JetBrains Mono', monospace; }
 
-    /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
       .sidebar { transform: translateX(-100%); }
       .main-wrap { margin-left: 0; }
     }
   </style>
-  {% block extra_css %}{% endblock %}
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
 
 {% if user.is_authenticated %}
-<!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-brand">
     <div class="brand-icon">🩸</div>
@@ -494,64 +476,156 @@
             <i class="bi bi-grid-1x2"></i> Tableau de bord
         </a>
     </div>
+
+    <!-- Donneurs : accessible à tous sauf admin -->
+    {% if user.role != 'admin' %}
     <div class="nav-item">
         <a href="{% url 'donneur_list' %}" class="{% if 'donneur' in request.resolver_match.url_name %}active{% endif %}">
             <i class="bi bi-person-heart"></i> Donneurs
         </a>
     </div>
+    {% endif %}
+
     <div class="nav-item">
         <a href="{% url 'donneur_carte' %}" class="{% if request.resolver_match.url_name == 'donneur_carte' %}active{% endif %}">
             <i class="bi bi-geo-alt"></i> Carte géo
         </a>
     </div>
 
-    <div class="nav-item">
-        <a href="{% url 'accueil_candidat' %}" class="{% if 'accueil' in request.resolver_match.url_name %}active{% endif %}">
-            <i class="bi bi-person-check"></i> Accueil candidats
-        </a>
-    </div>
-    <div class="nav-item">
-        <a href="{% url 'visiteur_list' %}" class="{% if 'visiteur' in request.resolver_match.url_name %}active{% endif %}">
-            <i class="bi bi-people"></i> Visiteurs CNTS
-        </a>
-    </div>
+    <!-- Accueil candidats : seulement infirmier -->
+{% if user.role == 'infirmier' %}
+<div class="nav-item">
+    <a href="{% url 'accueil_candidat' %}" class="{% if 'accueil' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-person-check"></i> Accueil candidats
+    </a>
+</div>
+{% endif %}
 
+{% if user.role in 'infirmier,medecin,directeur' %}
+<div class="nav-item">
+    <a href="javascript:void(0)" onclick="voirResultats()">
+        <i class="bi bi-search-heart"></i> Mes résultats
+    </a>
+</div>
+<div class="nav-item">
+    <a href="{% url 'visiteur_list' %}" class="{% if 'visiteur' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-people"></i> Visiteurs CNTS
+    </a>
+</div>
+{% endif %}
+    <!-- Opérations : selon rôle (ADMIN EXCLU) -->
     <div class="nav-section-label">Opérations</div>
+
+    <!-- Infirmier : prélèvement (admin exclu) -->
+    {% if user.role == 'infirmier' %}
     <div class="nav-item">
-        <a href="{% url 'poche_list' %}" class="{% if 'poche' in request.resolver_match.url_name %}active{% endif %}">
-            <i class="bi bi-droplet-half"></i> Poches de sang
+        <a href="{% url 'poche_create' %}">
+            <i class="bi bi-droplet-fill"></i> Nouveau prélèvement
         </a>
     </div>
     <div class="nav-item">
-        <a href="{% url 'demande_list' %}" class="{% if 'demande' in request.resolver_match.url_name %}active{% endif %}">
+        <a href="{% url 'candidats_a_prelever' %}">
+            <i class="bi bi-person-check"></i> Candidats à prélever
+        </a>
+    </div>
+   <div class="nav-item">
+    <a href="{% url 'liste_pre_enregistrements' %}">
+        <i class="bi bi-envelope-paper"></i> Pré‑enregistrements
+    </a>
+</div> 
+    {% endif %}
+
+    <!-- Technicien : analyses (admin exclu) -->
+    {% if user.role == 'technicien' or user.role == 'medecin' %}
+    <div class="nav-section-label">Laboratoire</div>
+    
+    <div class="nav-item">
+        <a href="{% url 'poche_list' %}" class="{% if request.resolver_match.url_name == 'poche_list' %}active{% endif %}">
+            <i class="bi bi-flask"></i> Analyses des poches
+        </a>
+    </div>
+    
+    <div class="nav-item">
+        <a href="{% url 'pooling_plaquettes' %}" class="{% if request.resolver_match.url_name == 'pooling_plaquettes' %}active{% endif %}">
+            <i class="bi bi-pie-chart"></i> Pooling Plaquettaire
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Gestionnaire : stock (admin exclu) -->
+    {% if user.role == 'gestionnaire' %}
+    <div class="nav-item">
+        <a href="{% url 'stock_view' %}">
+            <i class="bi bi-box-seam"></i> Gestion stock
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Médecin : examens et résultats -->
+    {% if user.role == 'medecin' or user.role == 'directeur' %}
+    <div class="nav-item">
+        <a href="{% url 'examen_en_attente' %}">
+            <i class="bi bi-clipboard-pulse"></i> Examens médicaux
+        </a>
+    </div>
+    <li class="nav-item">
+    <a href="{% url 'examen_candidats' %}" class="nav-link">
+        <i class="bi bi-clipboard-pulse"></i> Examens candidats
+    </a>
+</li>
+    <div class="nav-item">
+        <a href="{% url 'poche_list' %}">
+            <i class="bi bi-droplet-half"></i> Résultats analyses
+        </a>
+    </div>
+    <div class="nav-item">
+    <a href="{% url 'recherche_medicale' %}">
+        <i class="bi bi-search"></i> Recherche médicale
+    </a>
+</div>
+    {% endif %}
+
+    <!-- Responsable : livraisons (admin exclu) -->
+    {% if user.role == 'responsable' %}
+    <div class="nav-item">
+        <a href="{% url 'demandes_a_livrer' %}">
+            <i class="bi bi-truck"></i> Demandes à livrer
+            <span class="badge bg-warning">{{ demandes_prete_count }}</span>
+        </a>
+    </div>
+    <div class="nav-item">
+        <a href="{% url 'demande_list' %}">
             <i class="bi bi-file-medical"></i> Demandes
         </a>
     </div>
-    <!-- Dans votre template base.html ou sidebar -->
-    {% if user.role == 'responsable' %}
-    <li class="nav-item">
-        <a class="nav-link" href="{% url 'demandes_a_livrer' %}">
-            <i class="bi bi-truck"></i>
-            Demandes à livrer
-            <span class="badge bg-warning">
-                {{ demandes_prete_count }}
-            </span>
-        </a>
-    </li>
     {% endif %}
+
+    <!-- Prescripteur (médecin hospitalier) : demandes -->
+    {% if user.role == 'prescripteur' or user.role == 'medecin' %}
+    <div class="nav-section-label">Prescriptions</div>
     <div class="nav-item">
-        <a href="{% url 'stock_view' %}" class="{% if 'stock' in request.resolver_match.url_name %}active{% endif %}">
-            <i class="bi bi-box-seam"></i> Stock
+        <a href="{% url 'demande_create' %}">
+            <i class="bi bi-plus-circle"></i> Nouvelle demande de transfusion
         </a>
     </div>
     <div class="nav-item">
-        <a href="{% url 'hopital_list' %}" class="{% if 'hopital' in request.resolver_match.url_name %}active{% endif %}">
+        <a href="{% url 'demande_list' %}">
+            <i class="bi bi-file-medical"></i> Suivi des demandes
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Hôpitaux : tous sauf admin -->
+    {% if user.role != 'admin' %}
+    <div class="nav-item">
+        <a href="{% url 'hopital_list' %}">
             <i class="bi bi-hospital"></i> Hôpitaux
         </a>
     </div>
+    {% endif %}
 
-    <!-- NOUVELLE SECTION POUR LES CARTES DONNEURS -->
-    {% if user.role == 'directeur' or user.role == 'admin' %}
+    <!-- Directeur : cartes donneurs (admin exclu) -->
+    {% if user.role == 'directeur' %}
     <div class="nav-section-label">Cartes donneurs</div>
     <div class="nav-item">
         <a href="{% url 'donneur_list' %}">
@@ -561,32 +635,48 @@
     </div>
     {% endif %}
 
+    <!-- Communication : tous -->
     <div class="nav-section-label">Communication</div>
     <div class="nav-item">
-        <a href="{% url 'message_list' %}" class="{% if 'message' in request.resolver_match.url_name %}active{% endif %}">
+        <a href="{% url 'message_list' %}">
             <i class="bi bi-chat-dots"></i> SMS / IEC
         </a>
     </div>
 
-    <div class="nav-section-label">Admin</div>
-    <div class="nav-item">
-        <a href="{% url 'statistiques' %}" class="{% if request.resolver_match.url_name == 'statistiques' %}active{% endif %}">
-            <i class="bi bi-bar-chart-line"></i> Statistiques
-        </a>
-    </div>
-    {% if user.role == 'admin' or user.is_superuser %}
-    <div class="nav-item">
-        <a href="{% url 'utilisateur_list' %}" class="{% if 'utilisateur' in request.resolver_match.url_name %}active{% endif %}">
-            <i class="bi bi-people"></i> Utilisateurs
-        </a>
-    </div>
-    <div class="nav-item">
-        <a href="{% url 'configuration' %}" class="{% if request.resolver_match.url_name == 'configuration' %}active{% endif %}">
-            <i class="bi bi-gear"></i> Configuration
-        </a>
-    </div>
-    {% endif %}
-</nav>
+    <!-- ============================================== -->
+<!-- ZONE DU DIRECTEUR (Pilotage et Statistiques)   -->
+<!-- ============================================== -->
+{% if user.role == 'directeur' or user.role == 'admin' or user.is_superuser %}
+<div class="nav-section-label">Pilotage Stratégique</div>
+<div class="nav-item">
+    <a href="{% url 'statistiques' %}" class="{% if request.resolver_match.url_name == 'statistiques' %}active{% endif %}">
+        <i class="bi bi-bar-chart-line"></i> Statistiques globales
+    </a>
+</div>
+<div class="nav-item">
+    <a href="{% url 'configuration' %}" class="{% if request.resolver_match.url_name == 'configuration' %}active{% endif %}">
+        <i class="bi bi-gear"></i> Paramètres (Prix)
+    </a>
+</div>
+{% endif %}
+
+<!-- ============================================== -->
+<!-- ZONE DE L'ADMINISTRATEUR IT (Sécurité)         -->
+<!-- ============================================== -->
+{% if user.role == 'admin' or user.is_superuser %}
+<div class="nav-section-label">Système & Sécurité</div>
+<div class="nav-item">
+    <a href="{% url 'utilisateur_list' %}" class="{% if 'utilisateur' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-people"></i> Gestion Utilisateurs
+    </a>
+</div>
+<div class="nav-item">
+    <a href="{% url 'liste_pre_enregistrements' %}">
+        <i class="bi bi-envelope-paper"></i> Pré‑enregistrements
+    </a>
+</div>
+{% endif %}
+  </nav>
 
   <div class="sidebar-footer">
     <div class="user-card">
@@ -602,13 +692,11 @@
   </div>
 </aside>
 
-<!-- MAIN -->
 <div class="main-wrap">
   <div class="topbar">
     <div class="topbar-title">{% block page_title %}{% endblock %}</div>
 
     <div class="topbar-actions">
-      <!-- Logique de rôle ajoutée dans la topbar -->
       <div class="user-menu">
         <span class="user-role">{{ user.get_role_display }}</span>
         {% if user.role == 'directeur' or user.role == 'admin' %}
@@ -616,23 +704,36 @@
         {% endif %}
       </div>
 
+      <!-- Nouveau donneur : seulement infirmier -->
+      {% if user.role in 'infirmier,accueil' %}
       <a href="{% url 'donneur_create' %}" class="btn-topbar" title="Nouveau donneur">
         <i class="bi bi-person-plus"></i>
       </a>
+      {% endif %}
+
+      <!-- Nouveau prélèvement : seulement infirmier -->
+      {% if user.role == 'infirmier' %}
       <a href="{% url 'poche_create' %}" class="btn-topbar" title="Nouveau prélèvement">
         <i class="bi bi-droplet-fill"></i>
       </a>
+      {% endif %}
+
+      <!-- Nouvelle demande : prescripteur ou médecin -->
+      {% if user.role == 'prescripteur' or user.role == 'medecin' %}
       <a href="{% url 'demande_create' %}" class="btn-topbar" title="Nouvelle demande">
         <i class="bi bi-plus-circle"></i>
       </a>
+      {% endif %}
+
+      <!-- Mon profil : tout le monde -->
       <a href="{% url 'profil' %}" class="btn-topbar" title="Mon profil">
         <i class="bi bi-person-circle"></i>
       </a>
-    </div>
-  </div>
+    </div> <!-- Fermeture de topbar-actions -->
+  </div> <!-- ✅ LE VOILÀ ! C'EST LA FERMETURE DE LA TOPBAR ✅ -->
 
+  
   <div class="page-content">
-    <!-- Django Messages -->
     {% if messages %}
     <div class="messages-container" id="toastContainer">
       {% for message in messages %}
@@ -650,22 +751,28 @@
   </div>
 </div>
 
-{% else %}
-  {% block auth_content %}{% endblock %}
-{% endif %}
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // Auto-dismiss toasts
-  setTimeout(() => {
+function voirResultats() {
+    var code = prompt("Entrez votre code d'accès à 6 chiffres :");
+    if (code && code.length == 6) {
+        window.location.href = "/resultats/" + code + "/";
+    } else {
+        alert("Code invalide. Le code doit contenir 6 chiffres.");
+    }
+}
+
+setTimeout(() => {
     document.querySelectorAll('.message-toast').forEach(el => {
-      el.style.opacity = '0';
-      el.style.transform = 'translateX(120%)';
-      el.style.transition = 'all 0.3s';
-      setTimeout(() => el.remove(), 300);
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(120%)';
+        el.style.transition = 'all 0.3s';
+        setTimeout(() => el.remove(), 300);
     });
-  }, 4000);
+}, 4000);
 </script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>
+{% else %}
+  {% block auth_content %}{% endblock %}
+{% endif %}

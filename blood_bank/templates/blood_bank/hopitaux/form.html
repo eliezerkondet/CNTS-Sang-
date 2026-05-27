@@ -1,12 +1,12 @@
 {% extends 'blood_bank/base.html' %}
-{% block title %}Nouvel hôpital{% endblock %}
+{% block title %}Nouvel hôpital — CNTS{% endblock %}
 {% block page_title %}Nouvel hôpital{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
     <div class="page-title">Ajouter un hôpital</div>
-    <div class="page-subtitle">Établissement partenaire du CNTS</div>
+    <div class="page-subtitle">Géolocalisation dynamique — Brazzaville</div>
   </div>
   <a href="{% url 'hopital_list' %}" class="btn-sm-ghost">
     <i class="bi bi-arrow-left"></i> Retour
@@ -14,7 +14,7 @@
 </div>
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
-  <form method="post">
+  <form method="post" id="hopitalForm">
     {% csrf_token %}
     <div class="card mb-4">
       <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
@@ -23,7 +23,7 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div style="grid-column:1/-1;">
           <label class="form-label">Nom de l'hôpital *</label>
-          <input type="text" name="nom" class="form-control"
+          <input type="text" name="nom" id="nomHopital" class="form-control"
                  placeholder="Ex: Hôpital Général de Brazzaville" required>
         </div>
         <div>
@@ -33,33 +33,73 @@
         </div>
         <div>
           <label class="form-label">Quartier</label>
-          <input type="text" name="quartier" class="form-control"
+          <input type="text" name="quartier" id="quartierHopital" class="form-control"
                  placeholder="Ex: Bacongo, Poto-Poto...">
         </div>
         <div style="grid-column:1/-1;">
           <label class="form-label">Adresse complète</label>
-          <textarea name="adresse" class="form-control" rows="2"
-                    placeholder="Adresse..."></textarea>
+          <textarea name="adresse" id="adresseHopital" class="form-control"
+                    rows="2" placeholder="Adresse..."></textarea>
         </div>
       </div>
     </div>
 
-    <!-- Géolocalisation -->
+    <!-- GÉOLOCALISATION DYNAMIQUE -->
     <div class="card mb-4">
       <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--crimson);">
-        📍 Géolocalisation — Cliquez sur la carte
+        📍 Géolocalisation dynamique
       </div>
-      <div id="mapForm" style="height:300px;border-radius:10px;margin-bottom:14px;"></div>
+
+      <!-- Barre de recherche avec suggestions -->
+      <div style="position:relative;margin-bottom:14px;">
+        <label class="form-label">Rechercher l'emplacement</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="searchLocation"
+                 class="form-control"
+                 placeholder="Tapez le nom du quartier, rue... Ex: Bacongo Brazzaville"
+                 autocomplete="off"
+                 style="flex:1;">
+          <button type="button" onclick="rechercherAdresse()"
+                  style="padding:10px 16px;background:var(--crimson);
+                         color:white;border:none;border-radius:8px;
+                         font-size:13px;font-weight:700;cursor:pointer;
+                         white-space:nowrap;">
+            🔍 Rechercher
+          </button>
+        </div>
+        <!-- Suggestions dropdown -->
+        <div id="suggestions"
+             style="display:none;position:absolute;top:100%;left:0;right:0;
+                    background:white;border:1px solid var(--border);
+                    border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.1);
+                    z-index:1000;max-height:250px;overflow-y:auto;margin-top:4px;">
+        </div>
+      </div>
+
+      <!-- Carte Leaflet -->
+      <div id="mapHopital"
+           style="height:350px;border-radius:10px;
+                  border:1px solid var(--border);margin-bottom:14px;">
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+        💡 Vous pouvez aussi <strong>cliquer directement sur la carte</strong>
+        pour placer le marqueur.
+      </p>
+
+      <!-- Coordonnées remplies automatiquement -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
           <label class="form-label">Latitude</label>
-          <input type="text" name="latitude" id="lat" class="form-control"
-                 placeholder="-4.2634" readonly>
+          <input type="text" name="latitude" id="latInput"
+                 class="form-control" placeholder="-4.2634"
+                 style="background:rgba(26,122,74,0.04);">
         </div>
         <div>
           <label class="form-label">Longitude</label>
-          <input type="text" name="longitude" id="lng" class="form-control"
-                 placeholder="15.2429" readonly>
+          <input type="text" name="longitude" id="lngInput"
+                 class="form-control" placeholder="15.2429"
+                 style="background:rgba(26,122,74,0.04);">
         </div>
       </div>
     </div>
@@ -69,29 +109,144 @@
     </button>
   </form>
 
-  <div class="card" style="background:rgba(26,92,139,0.03);">
-    <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--info);">
-      ℹ️ Géolocalisation
+  <div class="card" style="background:rgba(26,92,139,0.03);height:fit-content;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:#1A5C8B;">
+      ℹ️ Comment utiliser
     </div>
-    <p style="font-size:12px;color:var(--muted);line-height:1.7;">
-      Cliquez sur la carte pour placer automatiquement les coordonnées GPS
-      de l'hôpital. Ces coordonnées permettront de calculer les distances
-      et optimiser les livraisons de poches.
-    </p>
+    <ol style="font-size:12px;color:var(--muted);line-height:2;padding-left:16px;">
+      <li>Tapez le nom du quartier ou de l'hôpital</li>
+      <li>Sélectionnez dans les suggestions</li>
+      <li>Ou cliquez directement sur la carte</li>
+      <li>Les coordonnées se remplissent automatiquement</li>
+    </ol>
+    <div style="margin-top:12px;padding:10px;
+         background:rgba(26,122,74,0.06);border-radius:8px;">
+      <div style="font-size:11px;color:var(--success);font-weight:700;">
+        ✅ Données réelles OpenStreetMap
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+        Géolocalisation précise de Brazzaville
+      </div>
+    </div>
   </div>
 </div>
 
+<!-- Leaflet CSS + JS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-const map = L.map('mapForm').setView([-4.2634, 15.2429], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-let marker = null;
+// Initialiser la carte centrée sur Brazzaville
+const map = L.map('mapHopital').setView([-4.2634, 15.2429], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+// Marqueur CNTS
+L.marker([-4.2634, 15.2429], {
+  icon: L.divIcon({
+    className: '',
+    html: '<div style="background:#C0152A;color:white;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;">🩸 CNTS</div>',
+    iconAnchor: [20, 10]
+  })
+}).addTo(map).bindPopup('Centre National de Transfusion Sanguine');
+
+let markerHopital = null;
+
+// Clic sur la carte → place le marqueur
 map.on('click', function(e) {
-  if (marker) map.removeLayer(marker);
-  marker = L.marker(e.latlng).addTo(map);
-  document.getElementById('lat').value = e.latlng.lat.toFixed(6);
-  document.getElementById('lng').value = e.latlng.lng.toFixed(6);
+  placerMarqueur(e.latlng.lat, e.latlng.lng, '📍 Position sélectionnée');
+});
+
+function placerMarqueur(lat, lng, label) {
+  if (markerHopital) map.removeLayer(markerHopital);
+  markerHopital = L.marker([lat, lng], {
+    icon: L.divIcon({
+      className: '',
+      html: '<div style="background:#1A5C8B;color:white;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;">🏥 ' + label + '</div>',
+      iconAnchor: [20, 10]
+    })
+  }).addTo(map).bindPopup(label).openPopup();
+
+  // Remplir les champs
+  document.getElementById('latInput').value = lat.toFixed(6);
+  document.getElementById('lngInput').value = lng.toFixed(6);
+  map.setView([lat, lng], 15);
+}
+
+// Recherche Nominatim (OpenStreetMap) — avec suggestions
+let timer = null;
+document.getElementById('searchLocation').addEventListener('input', function() {
+  clearTimeout(timer);
+  const q = this.value.trim();
+  if (q.length < 3) {
+    document.getElementById('suggestions').style.display = 'none';
+    return;
+  }
+  timer = setTimeout(() => rechercherAdresse(q), 400);
+});
+
+async function rechercherAdresse(query) {
+  const q = query || document.getElementById('searchLocation').value.trim();
+  if (!q) return;
+
+  // Ajouter "Brazzaville Congo" si pas déjà présent pour avoir des résultats précis
+  const fullQuery = q.toLowerCase().includes('brazzaville') ? q : q + ' Brazzaville Congo';
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullQuery)}&limit=6&countrycodes=cg`,
+      { headers: { 'Accept-Language': 'fr' } }
+    );
+    const data = await res.json();
+    afficherSuggestions(data);
+  } catch(e) {
+    console.error('Erreur recherche:', e);
+  }
+}
+
+function afficherSuggestions(resultats) {
+  const div = document.getElementById('suggestions');
+  if (!resultats || resultats.length === 0) {
+    div.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:12px;">Aucun résultat. Essayez un nom plus précis.</div>';
+    div.style.display = 'block';
+    return;
+  }
+
+  div.innerHTML = resultats.map((r, i) =>
+    `<div onclick="selectionnerAdresse(${r.lat}, ${r.lon}, '${r.display_name.replace(/'/g, "\\'")}', ${i})"
+          style="padding:10px 14px;cursor:pointer;font-size:12px;
+                 border-bottom:1px solid var(--border);transition:background 0.15s;"
+          onmouseover="this.style.background='rgba(192,21,42,0.06)'"
+          onmouseout="this.style.background='white'">
+       <div style="font-weight:600;color:var(--crimson);">📍 ${r.display_name.split(',')[0]}</div>
+       <div style="color:var(--muted);font-size:11px;margin-top:2px;">${r.display_name}</div>
+     </div>`
+  ).join('');
+  div.style.display = 'block';
+}
+
+function selectionnerAdresse(lat, lng, displayName, idx) {
+  document.getElementById('suggestions').style.display = 'none';
+  document.getElementById('searchLocation').value = displayName.split(',')[0];
+
+  // Remplir automatiquement l'adresse et le quartier
+  const parts = displayName.split(',');
+  if (!document.getElementById('adresseHopital').value) {
+    document.getElementById('adresseHopital').value = displayName;
+  }
+  if (!document.getElementById('quartierHopital').value && parts[1]) {
+    document.getElementById('quartierHopital').value = parts[1].trim();
+  }
+
+  placerMarqueur(parseFloat(lat), parseFloat(lng), parts[0]);
+}
+
+// Fermer suggestions si clic ailleurs
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#searchLocation') && !e.target.closest('#suggestions')) {
+    document.getElementById('suggestions').style.display = 'none';
+  }
 });
 </script>
 {% endblock %}

@@ -27,27 +27,27 @@
 <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
   <div class="stat-card stat-crimson">
     <div class="stat-icon"><i class="bi bi-droplet-half"></i></div>
-    <div class="stat-value">{{ total_poches }}</div>
+    <div class="stat-value">{{ total_collectees|default:0 }}</div>
     <div class="stat-label">Total collectées</div>
   </div>
   <div class="stat-card stat-success">
     <div class="stat-icon"><i class="bi bi-check-circle"></i></div>
-    <div class="stat-value">{{ total_disponibles }}</div>
+    <div class="stat-value">{{ total_disponibles|default:0 }}</div>
     <div class="stat-label">Disponibles</div>
   </div>
   <div class="stat-card stat-gold">
     <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
-    <div class="stat-value">{{ total_en_analyse }}</div>
+    <div class="stat-value">{{ total_en_analyse|default:0 }}</div>
     <div class="stat-label">En analyse</div>
   </div>
   <div class="stat-card stat-info">
     <div class="stat-icon"><i class="bi bi-box-seam"></i></div>
-    <div class="stat-value">{{ total_attribuees }}</div>
+    <div class="stat-value">{{ total_attribuees|default:0 }}</div>
     <div class="stat-label">Attribuées</div>
   </div>
   <div class="stat-card stat-crimson">
     <div class="stat-icon"><i class="bi bi-exclamation-triangle"></i></div>
-    <div class="stat-value">{{ total_expirant }}</div>
+    <div class="stat-value">{{ total_expirant|default:0 }}</div>
     <div class="stat-label">Expirant ≤ 7j</div>
   </div>
 </div>
@@ -120,17 +120,24 @@
 
         <!-- Donneur -->
         <td>
-          <a href="{% url 'donneur_detail' p.donneur.pk %}"
-             style="color:var(--charcoal);font-weight:500;font-size:13px;">
-            {{ p.donneur.nom_complet }}
-          </a>
-          <div style="font-size:11px;color:var(--muted);">{{ p.donneur.telephone }}</div>
+          {% if p.donneur %}
+            <a href="{% url 'donneur_detail' p.donneur.pk %}"
+               style="color:var(--charcoal);font-weight:500;font-size:13px;">
+              {{ p.donneur.nom_complet }}
+            </a>
+            <div style="font-size:11px;color:var(--muted);">{{ p.donneur.telephone }}</div>
+          {% else %}
+            <span style="color:var(--muted);font-weight:500;font-size:13px;">
+              Candidat campagne
+            </span>
+            <div style="font-size:11px;color:var(--muted);">Sans donneur</div>
+          {% endif %}
         </td>
 
         <!-- Groupe sanguin -->
         <td>
           <span class="blood-badge blood-{{ p.groupe_sanguin|first|lower }}">
-            {{ p.groupe_sanguin }}
+            {{ p.groupe_sanguin|default:"?" }}
           </span>
         </td>
 
@@ -178,7 +185,7 @@
             </span>
             <div style="font-size:10px;color:var(--crimson);">
               {% if not p.test_vih %}VIH {% endif %}
-              {% if not p.test_hepatite %}Hépatite {% endif %}
+              {% if not p.test_hepatite_b %}Hépatite B {% endif %}
               {% if not p.test_syphilis %}Syphilis{% endif %}
             </div>
           {% endif %}
@@ -202,7 +209,7 @@
             <a href="{% url 'poche_detail' p.pk %}" class="btn-sm-ghost" title="Voir le détail">
               <i class="bi bi-eye"></i>
             </a>
-            {% if p.statut == 'collecte' or p.statut == 'en_analyse' %}
+            {% if p.statut == 'collectee' or p.statut == 'en_analyse' %}
             <a href="{% url 'poche_analyser' p.pk %}" class="btn-sm-ghost"
                style="color:var(--crimson);border-color:var(--crimson);" title="Analyser">
               <i class="bi bi-clipboard2-pulse"></i>

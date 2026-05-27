@@ -1,0 +1,48 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Pré‑enregistrements donneurs{% endblock %}
+{% block page_title %}Demandes de pré‑enregistrement{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-envelope-paper"></i> Nouvelles demandes
+  </div>
+  <div class="card-body">
+    {% if demandes %}
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Téléphone</th>
+            <th>Email</th>
+            <th>Date</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in demandes %}
+          <tr>
+            <td>{{ d.nom_complet }}</span></td>
+            <td>{{ d.telephone }}</span></td>
+            <td>{{ d.email|default:"—" }}</span></td>
+            <td>{{ d.date_demande|date:"d/m/Y H:i" }}</span></td>
+            <td>
+              {% if user.role == 'infirmier' %}
+                <form method="post" action="{% url 'traiter_pre_enregistrement' d.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-success">✅ Marquer traité</button>
+                </form>
+              {% else %}
+                <span class="text-muted">Consultation uniquement</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-muted">Aucune demande en attente.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

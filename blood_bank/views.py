@@ -1,23 +1,26 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-import json
+from django.core.mail import send_mail
+from .models import PreEnregistrementDonneur
+
+
+import json 
 import qrcode
 from io import BytesIO
 import base64
 from datetime import timedelta
-from PIL import Image
-
+from .models import Hopital
 from .models import (
     Utilisateur, Donneur, PocheSang, DemandeTransfusion,
     Configuration, MessageIEC, AlerteStock, LogSMS,
-    ExamenMedical, CarteDonneur, VisiteurCNTS, Hopital,
+    CarteDonneur, VisiteurCNTS, Hopital,
     TracabiliteEvenement, CandidatDon
 )
 from .forms import (
@@ -31,19 +34,21 @@ from .sms_service import (
 )
 
 
-def role_required(*roles):
-    """Décorateur pour restreindre l'accès par rôle"""
+# ============================================================
+# DÉCORATEUR RÔLES
+# Règle simple : admin ne passe QUE là où 'admin' est listé
+# ============================================================
 
+def role_required(*roles):
     def decorator(view_func):
         @login_required
         def wrapper(request, *args, **kwargs):
-            if request.user.role in roles or request.user.is_superuser:
+            user_role = 'admin' if request.user.is_superuser else request.user.role
+            if user_role in roles:
                 return view_func(request, *args, **kwargs)
             messages.error(request, "Accès non autorisé pour votre rôle.")
             return redirect('dashboard')
-
         return wrapper
-
     return decorator
 
 
@@ -54,148 +59,94 @@ def role_required(*roles):
 def login_view(request):
     if request.user.is_authenticated:
         return redirect('dashboard')
-
     form = LoginForm(request, data=request.POST or None)
     if request.method == 'POST' and form.is_valid():
         user = form.get_user()
         login(request, user)
         messages.success(request, f"Bienvenue, {user.get_full_name() or user.username}!")
         return redirect(request.GET.get('next', 'dashboard'))
-
     return render(request, 'blood_bank/login.html', {'form': form})
 
 
 @login_required
 def logout_view(request):
     logout(request)
-    messages.info(request, "Déconnexion réussie.")
     return redirect('login')
 
 
 # ============================================================
-# DASHBOARD AVEC ACCÈS RAPIDE
+# DASHBOARD — tous les rôles voient les chiffres globaux
 # ============================================================
 
 @login_required
 def dashboard(request):
     today = timezone.now().date()
+    config = Configuration.get_config()
 
-    # Statistiques générales
     stats = {
-        'total_donneurs': Donneur.objects.filter(actif=True).count(),
+        'total_donneurs': Donneur.objects.count(),
         'dons_mois': PocheSang.objects.filter(
             date_prelevement__month=today.month,
             date_prelevement__year=today.year
         ).count(),
         'poches_disponibles': PocheSang.objects.filter(statut='disponible').count(),
-        'demandes_en_attente': DemandeTransfusion.objects.filter(statut_demande='en_attente').count(),
-        'alertes_actives': AlerteStock.objects.filter(resolue=False).count(),
-        'sms_envoyes': LogSMS.objects.filter(
-            date_envoi__date=today
+        'demandes_en_attente': DemandeTransfusion.objects.filter(
+            statut_demande='en_attente'
         ).count(),
+        'alertes_actives': AlerteStock.objects.filter(resolue=False).count(),
     }
 
-    # Stock par groupe sanguin
     groupes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
     stock_par_groupe = []
-    config = Configuration.get_config()
-
-    # Calcul du stock par type de produit
-    stock_par_type = {}
-    for type_code, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
-        stock_par_type[type_code] = {
-            'label': type_label,
-            'total': PocheSang.objects.filter(
-                type_produit=type_code,
-                statut='disponible'
-            ).count()
-        }
-
     for groupe in groupes:
-        count = PocheSang.objects.filter(groupe_sanguin=groupe, statut='disponible').count()
+        count = PocheSang.objects.filter(
+            groupe_sanguin=groupe, statut='disponible'
+        ).count()
         stock_par_groupe.append({
-            'groupe': groupe,
-            'count': count,
+            'groupe': groupe, 'count': count,
             'critique': count <= config.seuil_alerte_stock,
         })
 
-    # Dernières demandes
-    demandes_recentes = DemandeTransfusion.objects.select_related('prescripteur').order_by('-date_demande')[:5]
+    stats_stock = {}
+    for type_code, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
+        stats_stock[type_code] = PocheSang.objects.filter(
+            type_produit=type_code, statut='disponible'
+        ).count()
 
-    # Donneurs récents
-    donneurs_recents = Donneur.objects.order_by('-date_inscription')[:5]
-
-    # Alertes stock
-    alertes = AlerteStock.objects.filter(resolue=False).order_by('-date_alerte')[:5]
-
-    # Données pour graphique (7 derniers jours)
     dons_semaine = []
     for i in range(6, -1, -1):
         jour = today - timedelta(days=i)
         count = PocheSang.objects.filter(date_prelevement=jour).count()
         dons_semaine.append({'jour': jour.strftime('%d/%m'), 'count': count})
 
-    # Géolocalisation centre
-    centre_info = {
-        'nom': settings.CENTRE_NOM,
-        'adresse': settings.CENTRE_ADRESSE,
-        'latitude': settings.CENTRE_LATITUDE,
-        'longitude': settings.CENTRE_LONGITUDE,
-        'telephone': settings.CENTRE_TELEPHONE,
-    }
+    demandes_recentes = DemandeTransfusion.objects.order_by('-date_demande')[:5]
+    alertes = AlerteStock.objects.filter(resolue=False).order_by('-date_alerte')[:5]
 
-    # Accès rapide selon rôle
-    acces_rapide = []
-    if request.user.role in ['directeur', 'admin']:
-        acces_rapide = [
-            {'nom': 'Générer carte', 'url': 'donneur_list', 'icon': 'card', 'color': 'primary'},
-            {'nom': 'Fixer prix', 'url': 'configuration', 'icon': 'price', 'color': 'success'},
-            {'nom': 'Approuver réductions', 'url': 'demande_list', 'icon': 'discount', 'color': 'warning'},
-        ]
-    elif request.user.role in ['medecin', 'infirmier']:
-        acces_rapide = [
-            {'nom': 'Examen médical', 'url': 'examen_en_attente', 'icon': 'medical', 'color': 'info'},
-            {'nom': 'Prélèvement', 'url': 'poche_create', 'icon': 'blood', 'color': 'danger'},
-        ]
-    elif request.user.role in ['gestionnaire', 'responsable']:
-        acces_rapide = [
-            {'nom': 'Stock', 'url': 'stock_view', 'icon': 'stock', 'color': 'primary'},
-            {'nom': 'Délivrance', 'url': 'demande_list', 'icon': 'delivery', 'color': 'success'},
-        ]
-    demandes_prete_count = 0
-    if request.user.role == 'responsable':
-        demandes_prete_count = DemandeTransfusion.objects.filter(
-            statut_demande='preparee'
-        ).count()
-    context = {
+    return render(request, 'blood_bank/dashboard.html', {
         'stats': stats,
         'stock_par_groupe': stock_par_groupe,
-        'stock_par_type': stock_par_type,
+        'stats_stock': stats_stock,
         'demandes_recentes': demandes_recentes,
-        'donneurs_recents': donneurs_recents,
         'alertes': alertes,
         'dons_semaine': json.dumps(dons_semaine),
-        'centre_info': centre_info,
         'config': config,
-        'acces_rapide': acces_rapide,
         'user_role': request.user.role,
-        'demandes_prete_count': demandes_prete_count,
-    }
-    return render(request, 'blood_bank/dashboard.html', context)
+    })
 
 
 # ============================================================
 # DONNEURS
+# Médecin : inscrit, examine, attribue résultats
+# Directeur : voit seulement
+# Admin : BLOQUÉ (confidentialité)
 # ============================================================
-from django.db.models import Q
+
 @login_required
+@role_required('medecin', 'infirmier', 'directeur', 'technicien', 'gestionnaire', 'responsable', 'prescripteur')
 def donneur_list(request):
     q = request.GET.get('q', '')
     groupe = request.GET.get('groupe', '')
-    type_d = request.GET.get('type', '')
-    risque = request.GET.get('risque', '')
-
-    donneurs = Donneur.objects.filter(actif=True)
+    donneurs = Donneur.objects.all()
     if q:
         donneurs = donneurs.filter(
             Q(nom_complet__icontains=q) |
@@ -204,78 +155,55 @@ def donneur_list(request):
         )
     if groupe:
         donneurs = donneurs.filter(groupe_sanguin=groupe)
-    if type_d:
-        donneurs = donneurs.filter(type_donneur=type_d)
-    if risque:
-        if risque == 'oui':
-            donneurs = donneurs.filter(est_donneur_risque=True)
-        elif risque == 'non':
-            donneurs = donneurs.filter(est_donneur_risque=False)
-
-    donneurs = donneurs.order_by('-date_inscription')
-
-    # Récupérer la configuration pour le seuil de dons
     config = Configuration.get_config()
-
-    # Ajouter le nombre de dons pour chaque donneur
-    from django.db.models import Count, Q as Q_count
-    donneurs = donneurs.annotate(
-        nb_dons=Count('pochesang', filter=Q_count(pochesang__statut__in=['disponible', 'attribuee', 'utilisee']))
-    )
-
-    context = {
-        'donneurs': donneurs,
-        'q': q,
-        'groupe': groupe,
-        'type_d': type_d,
-        'risque': risque,
+    return render(request, 'blood_bank/donneurs/list.html', {
+        'donneurs': donneurs.order_by('-date_inscription'),
+        'q': q, 'groupe': groupe,
         'groupes': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
-        'is_directeur': request.user.role in ['directeur', 'admin'],
-        'config': config,  # Ajout de la configuration
-    }
-    return render(request, 'blood_bank/donneurs/list.html', context)
+        'is_directeur': request.user.role in ['directeur'],
+        'config': config,
+    })
 
 
 @login_required
+@role_required('medecin', 'infirmier', 'directeur', 'technicien', 'gestionnaire', 'responsable')
+def donneur_detail(request, pk):
+    donneur = get_object_or_404(Donneur, pk=pk)
+    poches = PocheSang.objects.filter(donneur=donneur).order_by('-date_prelevement')
+    carte = getattr(donneur, 'carte', None)
+    return render(request, 'blood_bank/donneurs/detail.html', {
+        'donneur': donneur, 'poches': poches, 'carte': carte,
+        'peut_voir_examen': request.user.role in ['medecin', 'directeur'],
+        'peut_modifier_examen': request.user.role == 'medecin',
+        'is_directeur': request.user.role == 'directeur',
+        'centre_lat': getattr(settings, 'CENTRE_LATITUDE', -4.2634),
+        'centre_lon': getattr(settings, 'CENTRE_LONGITUDE', 15.2429),
+    })
+
+
+@login_required
+@role_required( 'infirmier')
 def donneur_create(request):
     form = DonneurForm(request.POST or None, request.FILES or None)
     if request.method == 'POST' and form.is_valid():
-        donneur = form.save()
-        # SMS de bienvenue
-        msg = (
-            f"Bienvenue {donneur.nom_complet.split()[0]} au CNTS!\n"
-            f"Code: {donneur.code_unique}\n"
-            f"Groupe: {donneur.groupe_sanguin}\n"
-            f"Merci pour votre engagement!"
-        )
-        envoyer_sms(donneur.telephone, msg, donneur=donneur)
-        messages.success(request, f"Donneur {donneur.nom_complet} enregistré avec succès!")
+        donneur = form.save(commit=False)
+        donneur.enregistre_par = request.user
+        donneur.save()
+        try:
+            envoyer_sms(donneur.telephone,
+                f"Bienvenue {donneur.nom_complet.split()[0]} au CNTS! "
+                f"Code: {donneur.code_unique}. Merci!")
+        except Exception:
+            pass
+        messages.success(request, f"✅ Donneur {donneur.nom_complet} enregistré!")
         return redirect('donneur_detail', pk=donneur.pk)
-
     return render(request, 'blood_bank/donneurs/form.html', {
         'form': form, 'title': 'Nouveau Donneur'
     })
 
 
 @login_required
-def donneur_detail(request, pk):
-    donneur = get_object_or_404(Donneur, pk=pk)
-    poches = PocheSang.objects.filter(donneur=donneur).order_by('-date_prelevement')
-    examen = getattr(donneur, 'examen_medical', None)
-    carte = getattr(donneur, 'carte', None)
-
-    return render(request, 'blood_bank/donneurs/detail.html', {
-        'donneur': donneur,
-        'poches': poches,
-        'examen': examen,
-        'carte': carte,
-        'centre_lat': settings.CENTRE_LATITUDE,
-        'centre_lon': settings.CENTRE_LONGITUDE,
-        'is_directeur': request.user.role in ['directeur', 'admin'],
-    })
-
-
-@login_required
+@role_required('medecin', 'infirmier')
 def donneur_edit(request, pk):
     donneur = get_object_or_404(Donneur, pk=pk)
     form = DonneurForm(request.POST or None, request.FILES or None, instance=donneur)
@@ -289,51 +217,163 @@ def donneur_edit(request, pk):
 
 
 @login_required
+@role_required('medecin', 'infirmier', 'directeur', 'gestionnaire')
 def donneur_carte(request):
-    """Carte géolocalisée de tous les donneurs"""
-    from django.conf import settings
-    import json
-
-    # Récupérer les donneurs avec des coordonnées
-    donneurs = Donneur.objects.filter(actif=True, latitude__isnull=False, longitude__isnull=False)
-
-    donneurs_data = []
+    donneurs = Donneur.objects.filter(
+        latitude__isnull=False, longitude__isnull=False
+    )
+    data = []
     for d in donneurs:
-        donneurs_data.append({
-            'id': d.pk,
-            'nom': d.nom_complet,
-            'groupe': d.groupe_sanguin if d.groupe_sanguin else '?',
-            'lat': float(d.latitude),
-            'lon': float(d.longitude),
-            'quartier': d.quartier,
+        data.append({
+            'id': d.pk, 'nom': d.nom_complet,
+            'groupe': d.groupe_sanguin or '?',
+            'lat': float(d.latitude), 'lon': float(d.longitude),
+            'quartier': getattr(d, 'quartier', ''),
             'peut_donner': d.peut_donner(),
-            'est_risque': d.est_donneur_risque,
         })
-
-    context = {
-        'donneurs_json': json.dumps(donneurs_data),
+    return render(request, 'blood_bank/donneurs/carte.html', {
+        'donneurs_json': json.dumps(data),
         'centre_lat': getattr(settings, 'CENTRE_LATITUDE', -4.2634),
         'centre_lon': getattr(settings, 'CENTRE_LONGITUDE', 15.2429),
-        'centre_nom': getattr(settings, 'CENTRE_NOM', 'CNTS Brazzaville'),
-        'groupes_liste': ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'],
-        'total_donneurs': len(donneurs_data),
-    }
+        'total_donneurs': len(data),
+    })
 
-    # CORRECTION ICI : utiliser carte.html au lieu de carte_donneur.html
-    return render(request, 'blood_bank/donneurs/carte.html', context)
 
 # ============================================================
-# POCHES DE SANG AVEC GESTION STOCK TEMPS RÉEL
+# RECHERCHE MÉDICALE — Médecin cherche donneur ou poche
 # ============================================================
 
 @login_required
+@role_required('medecin', 'technicien')
+def recherche_medicale(request):
+    q = request.GET.get('q', '').strip()
+    resultats_donneurs = []
+    resultats_poches = []
+    if q:
+        resultats_donneurs = Donneur.objects.filter(
+            Q(nom_complet__icontains=q) |
+            Q(code_unique__icontains=q) |
+            Q(telephone__icontains=q) |
+            Q(groupe_sanguin__icontains=q)
+        )[:10]
+        resultats_poches = PocheSang.objects.filter(
+            Q(code_barre__icontains=q) |
+            Q(donneur__nom_complet__icontains=q) |
+            Q(donneur__code_unique__icontains=q) |
+            Q(groupe_sanguin__icontains=q)
+        ).select_related('donneur')[:10]
+    return render(request, 'blood_bank/donneurs/recherche_medicale.html', {
+        'q': q,
+        'resultats_donneurs': resultats_donneurs,
+        'resultats_poches': resultats_poches,
+    })
+
+
+# ============================================================
+# EXAMEN MÉDICAL — Médecin fait, Directeur voit
+# ============================================================
+
+@login_required
+@role_required('medecin', 'directeur')
+def examen_en_attente(request):
+    """Liste des donneurs en attente d'examen médical"""
+    
+    # 1. Ceux qui n'ont pas encore d'examen médical du tout
+    donneurs_sans_examen = Donneur.objects.filter(
+        examen_medical__isnull=True
+    ).order_by('-date_inscription')
+
+    # 2. Ceux qui ont passé l'examen mais qui sont inactifs (inaptes)
+    donneurs_inaptes = Donneur.objects.filter(
+        examen_medical__isnull=False,
+        actif=False
+    ).order_by('-date_inscription')
+
+    return render(request, 'blood_bank/donneurs/examens_attente.html', {
+        'donneurs_sans_examen': donneurs_sans_examen,
+        'donneurs_inaptes': donneurs_inaptes,
+    })
+
+@login_required
+@role_required('medecin')
+def examen_medical_create(request, pk):
+    donneur = get_object_or_404(Donneur, pk=pk)
+    
+    # On crée un faux objet 'examen' juste pour que le HTML ne plante pas 
+    # s'il cherche à afficher des valeurs existantes
+    examen_existant = donneur 
+
+    if request.method == 'POST':
+        # 1. On lit les réponses du formulaire SANS les sauvegarder dans la table Donneur
+        tension_ok = request.POST.get('tension_ok') == 'on'
+        poids_ok = request.POST.get('poids_ok') == 'on'
+        hemoglobine_ok = request.POST.get('hemoglobine_ok') == 'on'
+        pas_fievre = request.POST.get('pas_fievre') == 'on'
+        pas_de_maladie = request.POST.get('pas_de_maladie') == 'on'
+        pas_de_medicament = request.POST.get('pas_de_medicament') == 'on'
+        pas_tuberculose = request.POST.get('pas_tuberculose') == 'on'
+        pas_antecedents_risque = request.POST.get('pas_antecedents_risque') == 'on'
+        
+        motif = request.POST.get('motif_inaptitude', '').strip()
+        
+        # 2. Le médecin peut pré-estimer le groupe sanguin (Ça oui, ça va dans la base)
+        groupe_examen = request.POST.get('groupe_sanguin_examen', '').strip()
+        if groupe_examen and not donneur.groupe_sanguin:
+            donneur.groupe_sanguin = groupe_examen
+
+        # 3. ÉVALUATION DIRECTE DANS LA VUE (Plus besoin de fonction dans le modèle !)
+        apte = all([
+            tension_ok, poids_ok, hemoglobine_ok, pas_fievre, 
+            pas_de_maladie, pas_de_medicament, pas_tuberculose, pas_antecedents_risque
+        ])
+
+        # 4. On met à jour le statut officiel du donneur
+        if apte:
+            donneur.statut_inscription = 'apte' # Le bon champ de ta table Donneur
+            messages.success(request, f"✅ {donneur.nom_complet} est APTE. Passez au prélèvement.")
+            # Le SMS si tu as la connexion
+            try:
+                envoyer_sms(donneur.telephone, f"Bonjour {donneur.nom_complet}, vous êtes apte au don. Merci!")
+            except Exception:
+                pass
+        else:
+            donneur.statut_inscription = 'inapte'
+            messages.warning(request, f"⚠ {donneur.nom_complet} est INAPTE. Motif: {motif or 'Non précisé'}")
+            
+        donneur.save()
+        return redirect('donneur_detail', pk=pk)
+
+    # L'affichage du formulaire HTML
+    return render(request, 'blood_bank/donneurs/examen_medical.html', {
+        'donneur': donneur,
+        'examen': examen_existant, 
+        'groupe_choices': [('A+', 'A+'), ('A-', 'A-'), ('B+', 'B+'), ('B-', 'B-'), ('O+', 'O+'), ('O-', 'O-'), ('AB+', 'AB+'), ('AB-', 'AB-')],
+        'is_new': True,
+    })
+
+
+
+# POCHES DE SANG
+# Seul le médecin prélève le SANG TOTAL
+# Seul le technicien analyse
+# Technicien fractionne
+# ============================================================
+
+@login_required
+@role_required('medecin', 'technicien', 'gestionnaire', 'directeur', 'responsable')
 def poche_list(request):
     statut = request.GET.get('statut', '')
     groupe = request.GET.get('groupe', '')
     type_produit = request.GET.get('type_produit', '')
     q = request.GET.get('q', '')
+    today = timezone.now().date()
 
     poches = PocheSang.objects.select_related('donneur').all()
+    
+    # Technicien : voit uniquement les poches à analyser
+    if request.user.role == 'Technicien de Laboratoire':
+        poches = poches.filter(statut__in=['collectee', 'en_analyse'])
+    
     if statut:
         poches = poches.filter(statut=statut)
     if groupe:
@@ -345,671 +385,863 @@ def poche_list(request):
             Q(code_barre__icontains=q) |
             Q(donneur__nom_complet__icontains=q)
         )
+    
+    # Marquer les expirées automatiquement
+    for p in poches.filter(statut='disponible'):
+        if p.est_expiree:
+            p.statut = 'expiree'
+            p.save()
 
-    poches_list = list(poches.order_by('-date_prelevement'))
-    today = timezone.now().date()
-
-    # Vérifier et marquer les poches expirées
-    for poche in poches_list:
-        if poche.est_expiree and poche.statut == 'disponible':
-            poche.statut = 'expiree'
-            poche.save()
-            verifier_alertes_stock()
+    # ===== COMPTEURS =====
+    total_collectees = PocheSang.objects.filter(statut='collectee').count()
+    total_en_analyse = PocheSang.objects.filter(statut='en_analyse').count()
+    total_disponibles = PocheSang.objects.filter(statut='disponible').count()
+    total_rejetees = PocheSang.objects.filter(statut='rejetee').count()
+    total_attribuees = PocheSang.objects.filter(statut='attribuee').count()
+    # ====================
 
     return render(request, 'blood_bank/poches/list.html', {
-        'poches': poches_list,
-        'statut': statut,
-        'groupe': groupe,
-        'type_produit': type_produit,
-        'q': q,
+        'poches': poches.order_by('-date_prelevement'),
+        'statut': statut, 'groupe': groupe,
+        'type_produit': type_produit, 'q': q,
         'statuts': PocheSang.STATUT_CHOICES,
         'groupes': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
         'types_produit': PocheSang.TYPE_PRODUIT_CHOICES,
-        # Compteurs pour les stat-cards
-        'total_poches': PocheSang.objects.count(),
-        'total_disponibles': PocheSang.objects.filter(statut='disponible').count(),
-        'total_en_analyse': PocheSang.objects.filter(statut='en_analyse').count(),
-        'total_attribuees': PocheSang.objects.filter(statut='attribuee').count(),
+        'total_collectees': total_collectees,
+        'total_en_analyse': total_en_analyse,
+        'total_disponibles': total_disponibles,
+        'total_rejetees': total_rejetees,
+        'total_attribuees': total_attribuees,
         'total_expirant': PocheSang.objects.filter(
             statut='disponible',
             date_expiration__lte=today + timedelta(days=7)
         ).count(),
     })
 
-
 @login_required
+@role_required('medecin', 'technicien', 'gestionnaire', 'directeur', 'responsable')
 def poche_detail(request, pk):
     poche = get_object_or_404(PocheSang, pk=pk)
-    return render(request, 'blood_bank/poches/detail.html', {'poche': poche})
-
-
-def verifier_alertes_stock():
-    """Vérifie et crée des alertes si stock insuffisant"""
-    from .models import Configuration, PocheSang, AlerteStock, Utilisateur
-    import logging
-
-    try:
-        config = Configuration.get_config()
-    except:
-        # Si la configuration n'existe pas, utiliser des valeurs par défaut
-        class DefaultConfig:
-            seuil_alerte_stock = 5
-
-        config = DefaultConfig()
-
-    alertes_creees = []
-
-    for type_produit, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
-        for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
-            count = PocheSang.objects.filter(
-                groupe_sanguin=groupe,
-                type_produit=type_produit,
-                statut='disponible'
-            ).count()
-
-            if count <= config.seuil_alerte_stock:
-                niveau = 'critical' if count == 0 else 'warning'
-
-                alerte, created = AlerteStock.objects.get_or_create(
-                    groupe_sanguin=groupe,
-                    type_produit=type_produit,
-                    resolue=False,
-                    defaults={
-                        'niveau': niveau,
-                        'message': f"Stock {type_label} {groupe}: {count} poche(s) disponible(s). Seuil: {config.seuil_alerte_stock}",
-                        'stock_actuel': count,
-                        'seuil': config.seuil_alerte_stock,
-                    }
-                )
-
-                if created:
-                    alertes_creees.append({
-                        'groupe': groupe,
-                        'type': type_label,
-                        'count': count
-                    })
-
-                    # Appeler la fonction d'alerte avec 3 arguments
-                    try:
-                        from .sms_service import envoyer_alerte_stock
-                        envoyer_alerte_stock(groupe, count, config.seuil_alerte_stock)
-                    except Exception as e:
-                        print(f"Erreur envoi alerte SMS: {e}")
-
-                    # Logger l'alerte au lieu de créer une notification
-                    logger = logging.getLogger(__name__)
-                    logger.warning(
-                        f"ALERTE STOCK - {type_label} {groupe}: {count} poches (seuil: {config.seuil_alerte_stock})")
-
-                    # Optionnel: Utiliser messages Django si vous avez un request
-                    # from django.contrib import messages
-                    # messages.warning(request, f"⚠️ ALERTE STOCK - {type_label} {groupe}: {count} poche(s) restante(s)")
-
-    if alertes_creees:
-        print(f"Nouvelles alertes créées: {len(alertes_creees)}")
-
-    return alertes_creees
-
-
-@login_required
-@role_required('infirmier', 'medecin', 'admin')
-def poche_create(request):
-    form = PocheSangForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        poche = form.save(commit=False)
-        poche.creee_par = request.user
-
-        # Vérifier si le donneur est à risque
-        if poche.donneur.est_donneur_risque:
-            messages.warning(request, f"⚠ Attention: {poche.donneur.nom_complet} est identifié comme donneur à risque!")
-
-        poche.save()
-
-        # Mettre à jour le date du dernier don
-        donneur = poche.donneur
-        donneur.date_dernier_don = poche.date_prelevement
-        donneur.credit_solidaire += 1
-        donneur.save(update_fields=['date_dernier_don', 'credit_solidaire'])
-
-        # Notification SMS
-        envoyer_notification_don(donneur)
-
-        # Vérifier si le donneur est éligible pour la carte
-        CarteDonneur.generer_si_eligible(donneur)
-
-        messages.success(request, f"Poche {poche.code_barre} enregistrée!")
-        return redirect('poche_analyser', pk=poche.pk)
-
-    return render(request, 'blood_bank/poches/form.html', {
-        'form': form, 'title': 'Enregistrer un prélèvement'
+    return render(request, 'blood_bank/poches/detail.html', {
+        'poche': poche,
+        'peut_fractionner': (
+            request.user.role == 'technicien' and
+            poche.type_produit == 'sang_total' and
+            poche.statut == 'disponible'
+        ),
     })
 
 
+@login_required
+@role_required('infirmier')
+def poche_create(request):
+    """
+    Seul l'infirmier prélève. Type forcé = sang_total uniquement.
+    Le fractionnement se fait après en labo par le technicien.
+    """
+    if request.method == 'POST':
+        form = PocheSangForm(request.POST)
+        if form.is_valid():
+            poche = form.save(commit=False)
+            poche.creee_par = request.user
+            poche.statut = 'collectee'
+            # IMPORTANT : on prélève UNIQUEMENT du sang total
+            poche.type_produit = 'sang_total'
+            
+            if not poche.date_prelevement:
+                poche.date_prelevement = timezone.now().date()
+
+            # ===== LIEU DE COLLECTE =====
+            lieu = request.POST.get('lieu_collecte')
+            if lieu == 'autre':
+                lieu = request.POST.get('autre_lieu', 'Autre')
+            poche.lieu_collecte = lieu
+            # ============================
+
+            # --- VÉRIFICATION DE L'EXAMEN MÉDICAL DU DONNEUR ---
+            donneur = poche.donneur
+            if donneur and hasattr(donneur, 'examen_medical') and donneur.examen_medical and donneur.examen_medical.resultat != 'apte':
+                messages.error(request, "Ce donneur n'est pas apte (examen médical non validé).")
+                return redirect('donneur_detail', pk=donneur.pk)
+            # -------------------------------------------------
+
+            if poche.donneur and poche.donneur.groupe_sanguin:
+                poche.groupe_sanguin = poche.donneur.groupe_sanguin
+            poche.save()
+
+            # Incrémenter le donneur
+            if donneur:
+                donneur.date_dernier_don = poche.date_prelevement
+                donneur.credit_solidaire = getattr(donneur, 'credit_solidaire', 0) + 1
+                donneur.save(update_fields=['date_dernier_don', 'credit_solidaire'])
+                try:
+                    envoyer_notification_don(donneur)
+                except Exception:
+                    pass
+                CarteDonneur.generer_si_eligible(donneur)
+
+            # Traçabilité
+            TracabiliteEvenement.objects.create(
+                poche=poche, etape='prelevement',
+                effectue_par=request.user,
+                notes='Prélèvement sang total enregistré'
+            )
+
+            messages.success(request, f"✅ Poche {poche.code_barre} enregistrée avec succès!")
+            return redirect('poche_analyser', pk=poche.pk)
+    else:
+        form = PocheSangForm()
+    
+    return render(request, 'blood_bank/poches/form.html', {
+        'form': form,
+        'title': 'Nouveau prélèvement'
+    })
+
 
 @login_required
-@role_required('technicien', 'admin')
+@role_required('technicien')
 def poche_analyser(request, pk):
+    print("=== Vue poche_analyser appelée ===")
+    """
+    Technicien analyse la poche — 5 tests obligatoires.
+    Enregistrement obligatoire même si rejetée (cause enregistrée).
+    Groupe sanguin déterminé ici si inconnu.
+    """
     poche = get_object_or_404(PocheSang, pk=pk)
     form = AnalysePocheForm(request.POST or None, instance=poche)
 
+    donneur_sans_groupe = (
+        not poche.donneur or not poche.donneur.groupe_sanguin
+    )
+
     if request.method == 'POST' and form.is_valid():
+        print("=== MÉTHODE POST DÉTECTÉE ===") 
         poche = form.save(commit=False)
         poche.date_analyse = timezone.now()
-        poche.analysee_par = request.user
+        poche.biologiste = request.user
 
-        # Vérifier tous les tests médicaux
+        # Groupe sanguin déterminé lors de l'analyse
+        groupe_determine = request.POST.get('groupe_sanguin_donneur', '').strip()
+        if groupe_determine:
+            poche.groupe_sanguin = groupe_determine
+            if poche.donneur and not poche.donneur.groupe_sanguin:
+                poche.donneur.groupe_sanguin = groupe_determine
+                poche.donneur.save()
+                messages.info(request,
+                    f"🩸 Groupe {groupe_determine} attribué au donneur "
+                    f"{poche.donneur.nom_complet}")
+
+        # Vérification des 5 tests
+        # False = positif (rejet) | None = pas encore fait | True = négatif (ok)
         tests_echoues = []
-        if not poche.test_vih:
-            tests_echoues.append("VIH")
-        if not poche.test_hepatite_b:
-            tests_echoues.append("Hépatite B")
-        if not poche.test_hepatite_c:
-            tests_echoues.append("Hépatite C")
-        if not poche.test_syphilis:
-            tests_echoues.append("Syphilis")
-        if not poche.test_paludisme:
+        if poche.test_vih is False:
+            tests_echoues.append("VIH 1&2")
+        if poche.test_hepatite_b is False:
+            tests_echoues.append("Hépatite B (HBsAg)")
+        if poche.test_hepatite_c is False:
+            tests_echoues.append("Hépatite C (Anti-HCV)")
+        if poche.test_syphilis is False:
+            tests_echoues.append("Syphilis (TPHA/VDRL)")
+        if poche.test_paludisme is False:
             tests_echoues.append("Paludisme")
-        if not poche.test_chagas:
-            tests_echoues.append("Maladie de Chagas")
-        if not poche.test_htlv:
-            tests_echoues.append("HTLV")
-        if not poche.test_cytomegalovirus:
-            tests_echoues.append("Cytomégalovirus")
-        if not poche.test_ebv:
-            tests_echoues.append("Virus d'Epstein-Barr")
-        if not poche.test_parvovirus:
-            tests_echoues.append("Parvovirus B19")
+            # ===== GESTION SUSPENSION DONNEUR POUR PALUDISME =====
+            messages.warning(request, "⚠️ Test paludisme positif : poche rejetée, donneur suspendu temporairement.")
+            if poche.donneur:
+                from datetime import timedelta
+                poche.donneur.date_suspension_paludisme = timezone.now().date()
+                poche.donneur.date_retour_autorise = timezone.now().date() + timedelta(days=180)  # 6 mois
+                poche.donneur.actif = False
+                poche.donneur.classification = 'suspendu'
+                poche.donneur.save()
+            else:
+                messages.info(request, "Test paludisme positif : informer la personne.")
+            # ====================================================
 
-        if len(tests_echoues) == 0:
-            poche.statut = 'disponible'
-            poche.tests_ok = True
-            messages.success(
-                request,
-                f"✅ Tous les tests sont négatifs — "
-                f"Poche {poche.code_barre} disponible pour transfusion !"
-            )
-        else:
+        if tests_echoues:
+            # REJET — enregistrement obligatoire avec cause
             poche.statut = 'rejetee'
-            poche.tests_ok = False
-            poche.donneur.est_donneur_risque = True
-            poche.donneur.save()
-            raison = ", ".join(tests_echoues)
-            messages.warning(
-                request,
-                f"❌ Poche {poche.code_barre} REJETÉE — "
-                f"Tests positifs : {raison}. Donneur marqué comme à risque."
+            poche.save()
+            # Supprimer doublons traçabilité puis créer
+            TracabiliteEvenement.objects.filter(
+                poche=poche, etape='rejet'
+            ).delete()
+            TracabiliteEvenement.objects.create(
+                poche=poche, etape='rejet',
+                effectue_par=request.user,
+                notes=f"REJET — Tests positifs: {', '.join(tests_echoues)}"
             )
+            messages.error(request,
+                f"❌ Poche {poche.code_barre} REJETÉE. "
+                f"Cause enregistrée: {', '.join(tests_echoues)}")
+        else:
+            # VALIDATION — tous les tests négatifs
+            poche.statut = 'disponible'
+            poche.save()
+            TracabiliteEvenement.objects.filter(
+                poche=poche, etape='validation_stock'
+            ).delete()
+            TracabiliteEvenement.objects.create(
+                poche=poche, etape='validation_stock',
+                effectue_par=request.user,
+                notes='5 tests négatifs — poche validée et disponible'
+            )
+            messages.success(request,
+                f"✅ Poche {poche.code_barre} DISPONIBLE! "
+                f"Tous les 5 tests négatifs.")
 
-        poche.save()
         verifier_alertes_stock()
         return redirect('poche_list')
 
     return render(request, 'blood_bank/poches/analyser.html', {
-        'form': form, 'poche': poche
+        'form': form, 'poche': poche,
+        'donneur_sans_groupe': donneur_sans_groupe,
+        'groupes_sanguins': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+    })
+
+
+def verifier_alertes_stock():
+    try:
+        config = Configuration.get_config()
+        seuil = config.seuil_alerte_stock
+    except:
+        seuil = 5
+
+    for type_produit, _ in PocheSang.TYPE_PRODUIT_CHOICES:
+        for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
+            count = PocheSang.objects.filter(
+                type_produit=type_produit,
+                groupe_sanguin=groupe,
+                statut='disponible'
+            ).count()
+            if count <= seuil:
+                niveau = 'critical' if count == 0 else 'warning'
+                # Utilise update_or_create avec des critères uniques
+                alerte, created = AlerteStock.objects.update_or_create(
+                    type_produit=type_produit,
+                    groupe_sanguin=groupe,
+                    resolue=False,
+                    defaults={
+                        'niveau': niveau,
+                        'message': f"Stock {type_produit} {groupe}: {count} poche(s). Seuil: {seuil}",
+                        'stock_actuel': count,
+                        'seuil': seuil,
+                    }
+                )
+                if created:
+                    try:
+                        envoyer_alerte_stock(groupe, count, seuil)
+                    except:
+                        pass
+# ============================================================
+# FRACTIONNEMENT — Technicien uniquement
+# Sang total → culot érythrocytaire + plasma/cryoprécipité
+# Plaquettes → pooling de 4-5 poches sang total
+# ============================================================
+
+
+
+@login_required
+@role_required('technicien')
+def fractionner_poche(request, pk):
+    """
+    Le technicien fractionne une poche de sang total disponible.
+    La poche source est marquée utilisée.
+    Les produits dérivés héritent des tests de la source.
+    """
+    poche_source = get_object_or_404(PocheSang, pk=pk)
+
+    if poche_source.type_produit != 'sang_total':
+        messages.error(request, "❌ Seul le sang total peut être fractionné!")
+        return redirect('poche_detail', pk=pk)
+
+    if poche_source.statut != 'disponible':
+        messages.error(request, "❌ La poche doit être disponible (tests validés) pour être fractionnée!")
+        return redirect('poche_detail', pk=pk)
+
+    if request.method == 'POST':
+        types_selectionnes = request.POST.getlist('types_fractionnement')
+        if not types_selectionnes:
+            messages.error(request, "❌ Sélectionnez au moins un produit à créer.")
+            return redirect('fractionner_poche', pk=pk)
+
+        poches_creees = []
+        
+        # Les volumes exacts
+        volumes = {
+            'culot_erythrocytaire': 280,
+            'plasma_frais_congele': 200,
+            'cryoprecipite': 15,
+        }
+        
+        # Les jours de conservation exacts
+        conservation = {
+            'culot_erythrocytaire': 42,
+            'plasma_frais_congele': 365,
+            'cryoprecipite': 365,
+        }
+
+        for type_produit in types_selectionnes:
+            if type_produit == 'sang_total':
+                continue
+            
+            # Bloquer les plaquettes ici (ça se fait dans la vue Pooling)
+            if type_produit == 'culot_plaquettaire':
+                continue
+
+            # Calcul de la nouvelle date d'expiration
+            duree = conservation.get(type_produit, 42)
+            nouvelle_date_exp = poche_source.date_prelevement + timedelta(days=duree)
+
+            # Création de la poche dérivée (on copie tous les tests de la mère !)
+            poche_derivee = PocheSang.objects.create(
+                donneur=poche_source.donneur,
+                type_produit=type_produit,
+                groupe_sanguin=poche_source.groupe_sanguin,
+                date_prelevement=poche_source.date_prelevement,
+                date_expiration=nouvelle_date_exp, # La bonne date !
+                volume_ml=volumes.get(type_produit, 200), # Le bon volume !
+                statut='disponible',
+                
+                # Héritage obligatoire des tests
+                test_vih=poche_source.test_vih,
+                test_hepatite_b=poche_source.test_hepatite_b,
+                test_hepatite_c=poche_source.test_hepatite_c,
+                test_syphilis=poche_source.test_syphilis,
+                test_paludisme=poche_source.test_paludisme,
+                
+                creee_par=request.user,
+                notes=f"Fractionnée depuis {poche_source.code_barre}"
+            )
+            
+            # Traçabilité
+            TracabiliteEvenement.objects.create(
+                poche=poche_derivee,
+                etape='validation_stock',
+                effectue_par=request.user,
+                notes=f"Issue du fractionnement de {poche_source.code_barre}"
+            )
+            poches_creees.append(poche_derivee.get_type_produit_display())
+
+        if poches_creees:
+            # La poche mère est détruite
+            poche_source.statut = 'utilisee'
+            poche_source.save()
+            TracabiliteEvenement.objects.create(
+                poche=poche_source,
+                etape='livraison',
+                effectue_par=request.user,
+                notes=f"Fractionnée → {', '.join(poches_creees)}"
+            )
+            messages.success(request, f"✅ Fractionnement réussi! Produits créés : {', '.join(poches_creees)}")
+            verifier_alertes_stock()
+
+        return redirect('poche_list')
+
+    # LE VRAI DICTIONNAIRE MÉDICAL POUR TON HTML
+    return render(request, 'blood_bank/poches/fractionner.html', {
+        'poche': poche_source,
+        'types_disponibles': [
+            ('culot_erythrocytaire', '🔴 Culot érythrocytaire (Globules rouges) — 280 mL — 42 jours'),
+            ('plasma_frais_congele', '💧 Plasma Frais Congelé (PFC) — 200 mL — 1 an'),
+            ('cryoprecipite', '❄️ Cryoprécipité (Facteur VIII) — 15 mL — 1 an'),
+        ]
+    })
+@login_required
+@role_required('technicien', 'medecin')
+def pooling_plaquettes(request):
+    """
+    Pooling: 4-5 poches de Sang Total du même groupe → 1 concentré plaquettaire (MCP).
+    Expire en 5 jours. Les poches sources sont détruites.
+    """
+    groupes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+
+    if request.method == 'POST':
+        poches_ids = request.POST.getlist('poches_sources')
+        
+        if len(poches_ids) < 4:
+            messages.error(request, "❌ Minimum 4 poches de sang total nécessaires pour le pooling!")
+            return redirect('pooling_plaquettes')
+
+        poches = PocheSang.objects.filter(
+            pk__in=poches_ids,
+            type_produit='sang_total',
+            statut='disponible'
+        )
+        
+        if poches.count() < 4:
+            messages.error(request, "❌ Poches insuffisantes ou non disponibles!")
+            return redirect('pooling_plaquettes')
+
+        groupes_poches = set(poches.values_list('groupe_sanguin', flat=True))
+        if len(groupes_poches) > 1:
+            messages.error(request, "❌ Toutes les poches doivent avoir le même groupe sanguin!")
+            return redirect('pooling_plaquettes')
+
+        groupe = list(groupes_poches)[0]
+
+        # Création du concentré plaquettaire
+        from datetime import timedelta
+        poche_pool = PocheSang.objects.create(
+            # On attribue arbitrairement au premier donneur (règle CNTS classique)
+            donneur=poches.first().donneur, 
+            type_produit='culot_plaquettaire',
+            groupe_sanguin=groupe,
+            date_prelevement=timezone.now().date(),
+            date_expiration=timezone.now().date() + timedelta(days=5), # Expire très vite (5 jours)
+            volume_ml=50 * poches.count(), # Approx 50mL par poche source
+            statut='disponible',
+            
+            # Les tests sont validés car toutes les sources étaient 'disponibles'
+            test_vih=True,
+            test_hepatite_b=True,
+            test_hepatite_c=True,
+            test_syphilis=True,
+            test_paludisme=True,
+            
+            creee_par=request.user,
+            notes=f"Concentré plaquettaire (MCP) — Pool de {poches.count()} poches sources : {', '.join([p.code_barre for p in poches])}"
+        )
+        
+        # Traçabilité de la nouvelle poche
+        TracabiliteEvenement.objects.create(
+            poche=poche_pool,
+            etape='validation_stock',
+            effectue_par=request.user,
+            notes=f"Pooling plaquettaire généré à partir de {poches.count()} poches."
+        )
+        
+        # Destruction (utilisation) des poches sources
+        for poche in poches:
+            poche.statut = 'utilisee'
+            poche.save()
+            TracabiliteEvenement.objects.create(
+                poche=poche,
+                etape='livraison', # Ou une étape 'transformation' si tu en as une
+                effectue_par=request.user,
+                notes=f"Utilisée pour le pooling du MCP : {poche_pool.code_barre}"
+            )
+
+        messages.success(request, f"✅ Concentré plaquettaire {poche_pool.code_barre} créé ({groupe}) — Attention, il expire dans 5 jours.")
+        verifier_alertes_stock()
+        return redirect('poche_list')
+
+    # Affichage du formulaire (GET) : On trie les poches par groupe
+    poches_par_groupe = {}
+    for groupe in groupes:
+        poches_dispo = PocheSang.objects.filter(
+            groupe_sanguin=groupe,
+            type_produit='sang_total',
+            statut='disponible'
+        )
+        # On n'affiche le groupe que s'il y a assez de poches pour faire un pool
+        if poches_dispo.count() >= 4:
+            poches_par_groupe[groupe] = poches_dispo
+
+    return render(request, 'blood_bank/poches/pooling.html', {
+        'poches_par_groupe': poches_par_groupe,
     })
 
 
 # ============================================================
-# DEMANDES DE TRANSFUSION AVEC COMPATIBILITÉ SANGUINE CORRIGÉE
+# DEMANDES DE TRANSFUSION
+# Prescripteur soumet, Responsable/Gestionnaire valide et livre
+# Stock décrémente quand poche passe à 'utilisee'
 # ============================================================
 
 @login_required
+@role_required('prescripteur', 'medecin', 'responsable', 'gestionnaire', 'directeur')
 def demande_list(request):
     statut = request.GET.get('statut', '')
-    urgence = request.GET.get('urgence', '')
     groupe = request.GET.get('groupe', '')
-
-    demandes = DemandeTransfusion.objects.select_related('prescripteur', 'donneur_parrain').all()
+    demandes = DemandeTransfusion.objects.all()
     if statut:
         demandes = demandes.filter(statut_demande=statut)
-    if urgence:
-        demandes = demandes.filter(urgence=urgence)
     if groupe:
         demandes = demandes.filter(groupe_requis=groupe)
-
     return render(request, 'blood_bank/demandes/list.html', {
-        'demandes': demandes,
-        'statut': statut,
-        'urgence': urgence,
-        'groupe': groupe,
+        'demandes': demandes.order_by('-date_demande'),
+        'statut': statut, 'groupe': groupe,
         'statuts': DemandeTransfusion.STATUT_CHOICES,
-        'groupes': DemandeTransfusion.GROUPE_CHOICES,
-        'is_directeur': request.user.role in ['directeur', 'admin'],
+        'groupes': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+        'is_directeur': request.user.role == 'directeur',
     })
 
 
 @login_required
+@role_required('prescripteur', 'medecin', 'directeur')
 def demande_create(request):
     form = DemandeTransfusionForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         demande = form.save(commit=False)
         demande.prescripteur = request.user
-
-        # Vérification stricte de compatibilité sanguine
-        groupes_compatibles = PocheSang.groupes_donneurs_compatibles(demande.groupe_requis)
-
-        # Vérifier stock disponible par type ET groupe compatible
-        stock_dispo = PocheSang.objects.filter(
-            type_produit=demande.type_produit,
-            groupe_sanguin__in=groupes_compatibles,
-            statut='disponible'
-        ).count()
-
-        demande.disponibilite_verifiee = True
-        demande.compatibilite_verifiee = True
-
-        # Calcul du prix (peut être modifié par le directeur)
         demande.prix_final = demande.calculer_prix()
         demande.save()
-
-        if stock_dispo == 0:
-            messages.warning(
-                request,
-                f"⚠ Aucun {demande.get_type_produit_display()} "
-                f"compatible {demande.groupe_requis} disponible en stock !"
-            )
-        elif stock_dispo < demande.quantite:
-            messages.warning(
-                request,
-                f"⚠ Stock insuffisant : {stock_dispo} poche(s) disponible(s) "
-                f"sur {demande.quantite} demandée(s)."
-            )
+        groupes_ok = PocheSang.groupes_donneurs_compatibles(demande.groupe_requis)
+        stock = PocheSang.objects.filter(
+            type_produit=demande.type_produit,
+            groupe_sanguin__in=groupes_ok,
+            statut='disponible'
+        ).count()
+        if stock == 0:
+            messages.warning(request,
+                f"⚠ Aucun {demande.groupe_requis} disponible en stock!")
         else:
-            messages.success(
-                request,
-                f"✓ Demande #{demande.pk} créée. "
-                f"{stock_dispo} {demande.get_type_produit_display()} "
-                f"compatible(s) disponible(s)."
-            )
-
-        if demande.telephone_contact:
+            messages.success(request,
+                f"✅ Demande #{demande.pk} enregistrée. "
+                f"{stock} poche(s) compatible(s) disponible(s).")
+        try:
             envoyer_confirmation_demande(demande)
-
+        except Exception:
+            pass
         return redirect('demande_detail', pk=demande.pk)
-
-    # Stock disponible par type pour affichage dans le formulaire
-    stock_par_type = {}
-    for type_code, type_label in DemandeTransfusion.TYPE_PRODUIT_CHOICES:
-        stock_par_type[type_code] = {
-            'label': type_label,
-            'total': PocheSang.objects.filter(
-                type_produit=type_code,
-                statut='disponible'
-            ).count()
-        }
-
     return render(request, 'blood_bank/demandes/form.html', {
-        'form': form,
-        'title': 'Nouvelle demande de transfusion',
+        'form': form, 'title': 'Nouvelle demande de transfusion',
         'config': Configuration.get_config(),
-        'stock_par_type': stock_par_type,
     })
 
 
 @login_required
+@role_required( 'responsable')
+               
 def demande_detail(request, pk):
     demande = get_object_or_404(DemandeTransfusion, pk=pk)
-    groupes_compatibles = PocheSang.groupes_donneurs_compatibles(demande.groupe_requis)
-    poches_compatibles = PocheSang.objects.filter(
-        groupe_sanguin__in=groupes_compatibles,
-        type_produit=demande.type_produit,
-        statut='disponible'
-    ) if demande.statut_demande in ['en_attente', 'en_cours'] else []
-
+    groupes_ok = PocheSang.groupes_donneurs_compatibles(demande.groupe_requis)
+    poches_compatibles = []
+    if demande.statut_demande in ['en_attente', 'validee']:
+        poches_compatibles = PocheSang.objects.filter(
+            groupe_sanguin__in=groupes_ok,
+            type_produit=demande.type_produit,
+            statut='disponible'
+        )
     return render(request, 'blood_bank/demandes/detail.html', {
         'demande': demande,
         'poches_compatibles': poches_compatibles,
-        'groupe_choices': DemandeTransfusion.GROUPE_CHOICES,
-        'is_directeur': request.user.role in ['directeur', 'admin'],
+        'groupe_choices': DemandeTransfusion.GROUPE_CHOICES, 
+        'is_directeur': request.user.role == 'directeur',
     })
 
-
 @login_required
-@role_required('gestionnaire', 'responsable', 'admin', 'directeur')
+@role_required('gestionnaire', 'responsable', 'directeur')
 def demande_traiter(request, pk):
+    """
+    Responsable/Gestionnaire valide et attribue les poches.
+    Le stock décrémente quand les poches passent à 'attribuee' puis 'utilisee'.
+    """
     demande = get_object_or_404(DemandeTransfusion, pk=pk)
-
     if request.method == 'POST':
         action = request.POST.get('action')
-        poches_ids = request.POST.getlist('poches')
-        groupe_patient = request.POST.get('groupe_patient_verifie', '').strip()
 
-        if action == 'valider' and poches_ids:
-
-            # ── VÉRIFICATION OBLIGATOIRE DU GROUPE PATIENT ──
+        if action == 'valider':
+            poches_ids = request.POST.getlist('poches')
+            groupe_patient = request.POST.get('groupe_patient_verifie', '').strip()
             if not groupe_patient:
-                messages.error(
-                    request,
-                    "❌ Impossible de délivrer : le groupe sanguin du patient "
-                    "doit être vérifié par le laboratoire avant toute délivrance !"
-                )
+                messages.error(request,
+                    "❌ Groupe sanguin du patient obligatoire avant délivrance!")
                 return redirect('demande_detail', pk=pk)
 
-            # Vérification stricte de compatibilité
-            if not PocheSang.verifier_compatibilite_patient(groupe_patient, demande.groupe_requis):
-                messages.error(
-                    request,
-                    f"❌ INCOMPATIBILITÉ DÉTECTÉE : Le groupe du patient "
-                    f"({groupe_patient}) ne correspond pas au groupe requis "
-                    f"({demande.groupe_requis}). Délivrance REFUSÉE pour sécurité !"
-                )
-                return redirect('demande_detail', pk=pk)
-
-            # Groupe vérifié et concordant → on peut délivrer
             demande.groupe_patient_verifie = groupe_patient
             demande.verification_groupe_ok = True
-
-            # Récupérer les poches compatibles
-            groupes_compatibles = PocheSang.groupes_donneurs_compatibles(demande.groupe_requis)
+            groupes_ok = PocheSang.groupes_donneurs_compatibles(demande.groupe_requis)
             poches = PocheSang.objects.filter(
                 pk__in=poches_ids,
                 statut='disponible',
-                groupe_sanguin__in=groupes_compatibles,
-                type_produit=demande.type_produit,
+                groupe_sanguin__in=groupes_ok
             )[:demande.quantite]
 
-            if not poches:
-                messages.error(
-                    request,
-                    "❌ Aucune poche compatible disponible !"
-                )
+            # INTERDIRE LA VALIDATION SANS POCHE
+            if not poches.exists():
+                messages.error(request, "❌ Vous devez sélectionner au moins une poche pour valider la demande.")
                 return redirect('demande_detail', pk=pk)
 
             for poche in poches:
                 poche.statut = 'attribuee'
                 poche.save()
                 demande.poches_attribuees.add(poche)
-
-                # Enregistrer dans la traçabilité
-                TracabiliteEvenement.objects.create(
-                    poche=poche,
-                    etape='attribution',
-                    effectue_par=request.user,
-                    notes=f"Attribuée à la demande #{demande.pk} - {demande.hopital}"
+                TracabiliteEvenement.objects.get_or_create(
+                    poche=poche, etape='reservation',
+                    defaults={
+                        'effectue_par': request.user,
+                        'notes': f"Réservée — Demande #{demande.pk}"
+                    }
                 )
-
             demande.statut_demande = 'preparee'
-            demande.tracabilite_verifiee = True
             demande.date_traitement = timezone.now()
             demande.save()
-
-            messages.success(
-                request,
-                f"✅ Demande #{pk} validée. Groupe patient {groupe_patient} "
-                f"vérifié et concordant. {poches.count()} poche(s) attribuée(s)."
-            )
-            envoyer_confirmation_demande(demande)
+            messages.success(request,
+                f"✅ Demande #{pk} validée. "
+                f"{poches.count()} poche(s) attribuée(s).")
 
         elif action == 'livrer':
+            # INTERDIRE LA LIVRAISON SANS POCHE ATTRIBUÉE
+            if demande.poches_attribuees.count() == 0:
+                messages.error(request, "❌ Aucune poche attribuée à cette demande. Impossible de livrer.")
+                return redirect('demande_detail', pk=pk)
+
+            # Convertir le nom de l'hôpital en instance de Hopital
+            from .models import Hopital
+            hopital_obj = None
+            if demande.hopital:
+                hopital_obj = Hopital.objects.filter(nom__iexact=demande.hopital.strip()).first()
+                if not hopital_obj:
+                    # Création automatique si l'hôpital n'existe pas
+                    hopital_obj = Hopital.objects.create(
+                        nom=demande.hopital.strip(),
+                        actif=True
+                    )
+                    messages.info(request, f"Hôpital '{hopital_obj.nom}' ajouté automatiquement.")
+
             for poche in demande.poches_attribuees.all():
-                poche.statut = 'utilisee'
+                poche.statut = 'utilisee'  # ← Stock décrémente ici
                 poche.save()
-
-                # Enregistrer dans la traçabilité
-                TracabiliteEvenement.objects.create(
-                    poche=poche,
-                    etape='livraison',
-                    effectue_par=request.user,
-                    hopital=demande.hopital,
-                    notes=f"Livrée à {demande.hopital} pour patient {demande.patient_nom}"
+                TracabiliteEvenement.objects.get_or_create(
+                    poche=poche, etape='livraison',
+                    defaults={
+                        'effectue_par': request.user,
+                        'hopital': hopital_obj,  # ← Maintenant c'est une instance ou None
+                        'notes': (
+                            f"Livré à {demande.hopital} — "
+                            f"Patient: {demande.patient_nom}"
+                        )
+                    }
                 )
-
             demande.statut_demande = 'livree'
-            demande.date_livraison = timezone.now()
+            demande.date_traitement = timezone.now()
             demande.save()
-            messages.success(request, f"✅ Demande #{pk} livrée à {demande.hopital}.")
-            envoyer_confirmation_demande(demande)
-
-        elif action == 'refuser':
-            demande.statut_demande = 'refusee'
-            demande.notes += f"\nRefusé le {timezone.now().strftime('%d/%m/%Y à %H:%M')}"
-            demande.save()
-            messages.warning(request, f"Demande #{pk} refusée.")
-            envoyer_confirmation_demande(demande)
-
-        return redirect('demande_detail', pk=pk)
+            verifier_alertes_stock()
+            messages.success(request,
+                f"✅ Demande #{pk} livrée à {demande.hopital}.")
 
     return redirect('demande_detail', pk=pk)
 
 
-# Dans views.py
 
 @login_required
-@role_required('responsable', 'admin')
-def demande_livrer(request, pk):
-    """
-    Vue simplifiée : le responsable de délivrance livre la demande
-    Les poches de sang sont automatiquement déduites du stock
-    """
-    demande = get_object_or_404(DemandeTransfusion, pk=pk)
-
-    if request.method == 'POST':
-        notes = request.POST.get('notes_livraison', '')
-
-        # Vérifier que la demande est bien préparée
-        if demande.statut_demande != 'preparee':
-            messages.error(request, "Cette demande n'est pas prête pour la livraison.")
-            return redirect('demande_detail', pk=pk)
-
-        # Récupérer les poches attribuées
-        poches_a_livrer = demande.poches_attribuees.all()
-
-        if not poches_a_livrer:
-            messages.error(request, "Aucune poche attribuée à cette demande.")
-            return redirect('demande_detail', pk=pk)
-
-        # Compter le nombre de poches à livrer
-        nb_poches = poches_a_livrer.count()
-
-        # === RÉDUCTION DES POCHES DE SANG ===
-        # Mettre à jour le statut des poches (elles passent de "attribuée" à "utilisée")
-        for poche in poches_a_livrer:
-            # Vérifier que la poche est encore attribuée
-            if poche.statut != 'attribuee':
-                messages.warning(request, f"⚠ La poche {poche.code_barre} n'est plus disponible.")
-                continue
-
-            # Changer le statut de la poche
-            poche.statut = 'utilisee'
-            poche.save()
-
-            # Enregistrer dans la traçabilité
-            TracabiliteEvenement.objects.create(
-                poche=poche,
-                etape='livraison',
-                effectue_par=request.user,
-                hopital=demande.hopital,
-                notes=f"Livrée pour demande #{demande.pk} - Patient: {demande.patient_nom} - {notes}"
-            )
-
-        # Mettre à jour la demande
-        demande.statut_demande = 'livree'
-        demande.livre_par = request.user
-        demande.date_livraison = timezone.now()
-        demande.notes_livraison = notes
-        demande.save()
-
-        # Envoyer un SMS d'information au médecin (pas de validation)
-        if demande.telephone_contact:
-            try:
-                import africastalking
-                from django.conf import settings
-                africastalking.initialize(
-                    settings.AFRICASTALKING_USERNAME,
-                    settings.AFRICASTALKING_API_KEY
-                )
-                sms = africastalking.SMS
-                message_sms = (
-                    f"CNTS - Livraison effectuée\n"
-                    f"Demande N°{demande.pk}\n"
-                    f"{nb_poches} poche(s) de {demande.get_type_produit_display()}\n"
-                    f"Groupe: {demande.groupe_requis}\n"
-                    f"Patient: {demande.patient_nom}\n"
-                    f"Livré par: {request.user.get_full_name()}\n"
-                    f"Date: {timezone.now().strftime('%d/%m/%Y à %H:%M')}\n"
-                    f"Merci de votre collaboration !"
-                )
-                sms.send(message_sms, [demande.telephone_contact])
-
-                # Log SMS
-                LogSMS.objects.create(
-                    destinataire=demande.telephone_contact,
-                    message=message_sms,
-                    statut='envoye',
-                )
-            except Exception as e:
-                print(f"Erreur envoi SMS: {e}")
-
-        messages.success(
-            request,
-            f"✅ Demande #{demande.pk} livrée avec succès ! "
-            f"{nb_poches} poche(s) délivrée(s) à {demande.hopital}."
-        )
-
-        # Vérifier les alertes de stock après livraison
-        verifier_alertes_stock()
-
-        return redirect('demande_detail', pk=pk)
-
-    return redirect('demande_detail', pk=pk)
-
-
-# Dans views.py, ajoutez une vue filtrée pour le responsable
-
-@login_required
-@role_required('responsable', 'admin')
+@role_required('responsable')
 def demandes_a_livrer(request):
-    """
-    Liste des demandes prêtes à être livrées
-    """
     demandes = DemandeTransfusion.objects.filter(
         statut_demande='preparee'
     ).order_by('-date_traitement')
-
     return render(request, 'blood_bank/demandes/a_livrer.html', {
         'demandes': demandes,
-        'title': 'Demandes à livrer'
+        'title': 'Demandes à livrer',
+        'is_directeur': request.user.role == 'directeur',
+        'statuts': DemandeTransfusion.STATUT_CHOICES,
+        'groupes': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
     })
+
+
+@login_required
+@role_required('responsable')
+def demande_livrer(request, pk):
+    """Livraison finale d'une demande préparée"""
+    demande = get_object_or_404(DemandeTransfusion, pk=pk)
+    if request.method == 'POST':
+        if demande.statut_demande != 'preparee':
+            messages.error(request, "Demande non prête pour la livraison.")
+            return redirect('demande_detail', pk=pk)
+        notes = request.POST.get('notes_livraison', '')
+        nb = 0
+        for poche in demande.poches_attribuees.filter(statut='attribuee'):
+            poche.statut = 'utilisee'  # ← Stock décrémente
+            poche.save()
+            nb += 1
+            TracabiliteEvenement.objects.get_or_create(
+                poche=poche, etape='livraison',
+                defaults={
+                    'effectue_par': request.user,
+                    'hopital': demande.hopital,
+                    'notes': (
+                        f"Livré — #{demande.pk} — "
+                        f"{demande.patient_nom} — {notes}"
+                    )
+                }
+            )
+        demande.statut_demande = 'livree'
+        demande.date_traitement = timezone.now()
+        demande.save()
+        if demande.telephone_contact:
+            try:
+                envoyer_sms(
+                    demande.telephone_contact,
+                    f"CNTS — Livraison #{demande.pk} effectuée. "
+                    f"{nb} poche(s) {demande.groupe_requis}. "
+                    f"Patient: {demande.patient_nom}."
+                )
+            except Exception:
+                pass
+        verifier_alertes_stock()
+        messages.success(request,
+            f"✅ Demande #{pk} livrée — {nb} poche(s).")
+    return redirect('demande_detail', pk=pk)
+
+
+@login_required
+@role_required('directeur', 'admin')
+def approuver_prix_solidaire(request, pk):
+    demande = get_object_or_404(DemandeTransfusion, pk=pk)
+    if request.method == 'POST':
+        annuler = request.POST.get('annuler_solidaire') == '1'
+        if annuler:
+            demande.prix_solidaire_approuve = False
+            demande.approuve_par = None
+            demande.motif_solidaire = ''
+            demande.prix_final = demande.calculer_prix()
+        else:
+            nouveau_prix = request.POST.get('prix_personnalise', '').strip()
+            demande.prix_solidaire_approuve = True
+            demande.approuve_par = request.user
+            demande.motif_solidaire = (
+                request.POST.get('motif_solidaire', '') or
+                "Approuvé par le Directeur"
+            )
+            demande.prix_final = (
+                int(nouveau_prix) if nouveau_prix else demande.calculer_prix()
+            )
+        demande.save()
+        messages.success(request,
+            f"✅ Prix mis à jour: {demande.prix_final} FCFA.")
+    return redirect('demande_detail', pk=pk)
+
+
+# ============================================================
+# STOCK & ALERTES
+# Gestionnaire, Responsable, Directeur voient le stock détaillé
+# Admin : BLOQUÉ sur stock détaillé
+# ============================================================
+
+@login_required
+@role_required('gestionnaire', 'directeur', 'responsable')
+def stock_view(request):
+    groupes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+    config = Configuration.get_config()
+
+    # Marquer automatiquement les expirées
+    PocheSang.objects.filter(
+        statut='disponible',
+        date_expiration__lt=timezone.now().date()
+    ).update(statut='expiree')
+
+    stock_detail = []
+    for groupe in groupes:
+        for type_code, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
+            disponibles = PocheSang.objects.filter(
+                groupe_sanguin=groupe,
+                type_produit=type_code,
+                statut='disponible'
+            ).count()
+            expirant = PocheSang.objects.filter(
+                groupe_sanguin=groupe,
+                type_produit=type_code,
+                statut='disponible',
+                date_expiration__lte=timezone.now().date() + timedelta(days=7)
+            ).count()
+            stock_detail.append({
+                'groupe': groupe,
+                'type_produit': type_label,
+                'type_code': type_code,
+                'disponibles': disponibles,
+                'expirant': expirant,
+                'critique': disponibles <= config.seuil_alerte_stock,
+            })
+
+    alertes = AlerteStock.objects.filter(resolue=False).order_by('-date_alerte')
+    return render(request, 'blood_bank/stock/view.html', {
+        'stock_detail': stock_detail,
+        'alertes': alertes,
+        'config': config,
+        'stats_stock': {
+            'sang_total': PocheSang.objects.filter(
+                type_produit='sang_total', statut='disponible'
+            ).count(),
+            'plaquettes': PocheSang.objects.filter(
+                type_produit='culot_plaquettaire', statut='disponible'
+            ).count(),
+            'globules': PocheSang.objects.filter(
+                type_produit='culot_erythrocytaire', statut='disponible'
+            ).count(),
+            'cryo': PocheSang.objects.filter(
+                type_produit='cryoprecipite', statut='disponible'
+            ).count(),
+        }
+    })
+
+
+@login_required
+@role_required('gestionnaire', 'directeur', 'responsable')
+def resoudre_alerte(request, pk):
+    alerte = get_object_or_404(AlerteStock, pk=pk)
+    alerte.resolue = True
+    alerte.date_resolution = timezone.now()
+    alerte.save()
+    messages.success(request, "Alerte résolue.")
+    return redirect('stock_view')
+
+
+# ============================================================
+# IA PRÉDICTION J+3 — bouton interface
+# ============================================================
+
+@login_required
+@role_required('directeur', 'gestionnaire')
+def lancer_prediction_ia(request):
+    if request.method == 'POST':
+        try:
+            alertes = AlerteStock.predire_rupture_j3()
+            expirations = AlerteStock.verifier_expirations()
+            messages.success(request,
+                f"🤖 IA J+3: {len(alertes)} prédiction(s), "
+                f"{len(expirations)} expiration(s) détectée(s).")
+        except Exception as e:
+            messages.error(request, f"Erreur IA: {e}")
+    return redirect('statistiques')
+
 
 # ============================================================
 # MESSAGES IEC / SMS
+# Admin voit et envoie les SMS
 # ============================================================
 
 @login_required
-@role_required('admin')
+@role_required('admin', 'directeur', 'gestionnaire')
 def message_list(request):
-    messages_iec = MessageIEC.objects.select_related('createur').all()
-    logs_sms = LogSMS.objects.select_related('donneur').order_by('-date_envoi')[:20]
-
+    messages_iec = MessageIEC.objects.order_by('-date_creation')
+    logs_sms = LogSMS.objects.order_by('-date_envoi')[:20]
     return render(request, 'blood_bank/messages/list.html', {
-        'messages_iec': messages_iec,
-        'logs_sms': logs_sms,
+        'messages_iec': messages_iec, 'logs_sms': logs_sms,
     })
 
 
 @login_required
-@role_required('admin')
+@role_required('admin', 'directeur', 'gestionnaire')
 def message_create(request):
     form = MessageIECForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         msg = form.save(commit=False)
-        msg.createur = request.user
+        msg.cree_par = request.user
         msg.save()
-        messages.success(request, "Message créé. Cliquez sur 'Envoyer' pour le diffuser.")
+        messages.success(request, "Message IEC créé.")
         return redirect('message_list')
-
     return render(request, 'blood_bank/messages/form.html', {
         'form': form, 'title': 'Nouveau message IEC'
     })
 
 
 @login_required
-@role_required('admin')
+@role_required('admin', 'directeur', 'gestionnaire')
 def message_envoyer(request, pk):
     msg_iec = get_object_or_404(MessageIEC, pk=pk)
-
     if request.method == 'POST':
-        success, fail = envoyer_sms_campagne(msg_iec)
-        messages.success(
-            request,
-            f"Campagne envoyée! Succès: {success}, Échecs: {fail}"
-        )
-
+        try:
+            success, fail = envoyer_sms_campagne(msg_iec)
+            messages.success(request,
+                f"Campagne envoyée! ✅ {success} succès, ❌ {fail} échecs.")
+        except Exception as e:
+            messages.error(request, f"Erreur envoi: {e}")
     return redirect('message_list')
 
 
 # ============================================================
-# STOCK & ALERTES AVEC GESTION TEMPS RÉEL
-# ============================================================
-
-@login_required
-def stock_view(request):
-    groupes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-    config = Configuration.get_config()
-    stock_detail = []
-
-    # Vérifier et marquer les poches expirées
-    poches_expirees = PocheSang.objects.filter(
-        statut='disponible',
-        date_expiration__lt=timezone.now().date()
-    )
-    for poche in poches_expirees:
-        poche.statut = 'expiree'
-        poche.save()
-
-    for groupe in groupes:
-        for type_produit, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
-            disponibles = PocheSang.objects.filter(
-                groupe_sanguin=groupe,
-                type_produit=type_produit,
-                statut='disponible'
-            )
-            expirant_bientot = disponibles.filter(
-                date_expiration__lte=timezone.now().date() + timedelta(days=7)
-            )
-
-            stock_detail.append({
-                'groupe': groupe,
-                'type_produit': type_label,
-                'type_code': type_produit,
-                'disponibles': disponibles.count(),
-                'expirant': expirant_bientot.count(),
-                'critique': disponibles.count() <= config.seuil_alerte_stock,
-            })
-
-    alertes = AlerteStock.objects.filter(resolue=False).order_by('-date_alerte')
-
-    # Statistiques de stock global
-    stats_stock = {
-        'total_sang_total': PocheSang.objects.filter(type_produit='sang_total', statut='disponible').count(),
-        'total_plaquettes': PocheSang.objects.filter(type_produit='culot_plaquettaire', statut='disponible').count(),
-        'total_globules_rouges': PocheSang.objects.filter(type_produit='culot_erythrocytaire',
-                                                          statut='disponible').count(),
-        'total_plasma': PocheSang.objects.filter(type_produit='cryoprecipite', statut='disponible').count(),
-    }
-
-    return render(request, 'blood_bank/stock/view.html', {
-        'stock_detail': stock_detail,
-        'alertes': alertes,
-        'config': config,
-        'stats_stock': stats_stock,
-        'types_produit': PocheSang.TYPE_PRODUIT_CHOICES,
-    })
-
-
-@login_required
-@role_required('gestionnaire', 'admin')
-def resoudre_alerte(request, pk):
-    alerte = get_object_or_404(AlerteStock, pk=pk)
-    alerte.resolue = True
-    alerte.date_resolution = timezone.now()
-    alerte.save()
-    messages.success(request, "Alerte marquée comme résolue.")
-    return redirect('stock_view')
-
-
-# ============================================================
-# CONFIGURATION AVEC GESTION DES PRIX PAR LE DIRECTEUR
+# CONFIGURATION — Admin + Directeur
 # ============================================================
 
 @login_required
@@ -1017,21 +1249,19 @@ def resoudre_alerte(request, pk):
 def configuration_view(request):
     config = Configuration.get_config()
     form = ConfigurationForm(request.POST or None, instance=config)
-
     if request.method == 'POST' and form.is_valid():
-        config = form.save(commit=False)
-        config.modifie_par = request.user
-        config.save()
+        c = form.save(commit=False)
+        c.modifie_par = request.user
+        c.save()
         messages.success(request, "Configuration mise à jour.")
         return redirect('configuration')
-
     return render(request, 'blood_bank/config/view.html', {
         'form': form, 'config': config
     })
 
 
 # ============================================================
-# UTILISATEURS
+# UTILISATEURS — Admin uniquement
 # ============================================================
 
 @login_required
@@ -1048,8 +1278,12 @@ def utilisateur_list(request):
 def utilisateur_create(request):
     form = UtilisateurForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        user = form.save()
-        messages.success(request, f"Utilisateur {user.username} créé.")
+        user = form.save(commit=False)
+        mdp = form.cleaned_data.get('password')
+        if mdp:
+            user.set_password(mdp)
+        user.save()
+        messages.success(request, f"Utilisateur {user.username} créé!")
         return redirect('utilisateur_list')
     return render(request, 'blood_bank/utilisateurs/form.html', {
         'form': form, 'title': 'Nouvel utilisateur'
@@ -1071,154 +1305,646 @@ def utilisateur_edit(request, pk):
 
 
 # ============================================================
-# STATISTIQUES & RAPPORTS AVEC BOUTONS INTERACTIFS
+# STATISTIQUES COMPLÈTES
 # ============================================================
 
 @login_required
+@role_required('directeur', 'admin', 'gestionnaire')
 def statistiques(request):
     today = timezone.now().date()
 
-    # Périodes pour les rapports
-    periodes = {
-        'aujourdhui': today,
-        'semaine': today - timedelta(days=7),
-        'mois': today - timedelta(days=30),
-        'trimestre': today - timedelta(days=90),
-        'annee': today - timedelta(days=365),
-    }
-
-    periode = request.GET.get('periode', 'mois')
-    date_debut = periodes.get(periode, periodes['mois'])
-
-    # Dons par mois (12 derniers mois)
-    dons_par_mois = []
-    for i in range(11, -1, -1):
-        mois = today.month - i
-        annee = today.year
-        while mois <= 0:
-            mois += 12
-            annee -= 1
-        count = PocheSang.objects.filter(
-            date_prelevement__month=mois,
-            date_prelevement__year=annee
-        ).count()
-        dons_par_mois.append({
-            'mois': f"{mois:02d}/{annee}",
-            'count': count
-        })
-
-    # Répartition par groupe sanguin
-    repartition_groupes = []
-    for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
-        count = Donneur.objects.filter(groupe_sanguin=groupe, actif=True).count()
-        repartition_groupes.append({'groupe': groupe, 'count': count})
-
-    # Répartition par type de produit
-    repartition_produits = []
-    for type_code, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
-        count = PocheSang.objects.filter(type_produit=type_code).count()
-        repartition_produits.append({'type': type_label, 'count': count})
-
-    # Répartition par type de donneur
-    types_donneurs = Donneur.objects.values('type_donneur').annotate(
-        count=Count('id')
-    ).order_by('-count')
-
-    # Demandes par statut
-    demandes_statut = DemandeTransfusion.objects.values('statut_demande').annotate(
-        count=Count('id')
-    )
-
-    # Donneurs à risque
-    donneurs_risque = Donneur.objects.filter(est_donneur_risque=True).count()
-
-    # Taux d'utilisation des poches
+    # 1. Poches collectées
     total_poches = PocheSang.objects.count()
-    poches_utilisees = PocheSang.objects.filter(statut='utilisee').count()
-    taux_utilisation = (poches_utilisees / total_poches * 100) if total_poches > 0 else 0
+    poches_ce_mois = PocheSang.objects.filter(
+        date_prelevement__month=today.month,
+        date_prelevement__year=today.year
+    ).count()
+    poches_disponibles = PocheSang.objects.filter(statut='disponible').count()
+    poches_rejetees = PocheSang.objects.filter(statut='rejetee').count()
 
-    context = {
-        'dons_par_mois': json.dumps(dons_par_mois),
-        'repartition_groupes': json.dumps(repartition_groupes),
-        'repartition_produits': json.dumps(repartition_produits),
-        'types_donneurs': list(types_donneurs),
-        'demandes_statut': list(demandes_statut),
-        'total_donneurs': Donneur.objects.filter(actif=True).count(),
-        'total_poches': total_poches,
-        'total_demandes': DemandeTransfusion.objects.count(),
-        'total_sms': LogSMS.objects.count(),
-        'donneurs_risque': donneurs_risque,
-        'taux_utilisation': round(taux_utilisation, 2),
-        'periode_active': periode,
-        'date_debut': date_debut,
-    }
-    return render(request, 'blood_bank/stats/view.html', context)
+    # 2. Demandes
+    total_demandes = DemandeTransfusion.objects.count()
+    demandes_livrees = DemandeTransfusion.objects.filter(
+        statut_demande='livree'
+    ).count()
+    demandes_en_attente = DemandeTransfusion.objects.filter(
+        statut_demande='en_attente'
+    ).count()
+
+    # 3. Taux de satisfaction
+    taux = round(demandes_livrees / total_demandes * 100) if total_demandes > 0 else 0
+
+    # 4. Groupes les plus demandés
+    groupes_demandes = []
+    for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
+        nb = DemandeTransfusion.objects.filter(groupe_requis=groupe).count()
+        groupes_demandes.append({
+            'groupe': groupe,
+            'total': nb,
+            'pourcentage': round(nb / total_demandes * 100) if total_demandes > 0 else 0
+        })
+    groupes_demandes.sort(key=lambda x: x['total'], reverse=True)
+
+    # 5. Stock par groupe
+    stock_par_groupe = []
+    for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
+        nb = PocheSang.objects.filter(
+            groupe_sanguin=groupe, statut='disponible'
+        ).count()
+        stock_par_groupe.append({'groupe': groupe, 'total': nb})
+
+    # 6. Stock par type
+    stock_par_type = {}
+    for type_code, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
+        stock_par_type[type_code] = {
+            'label': type_label,
+            'total': PocheSang.objects.filter(
+                type_produit=type_code, statut='disponible'
+            ).count()
+        }
+
+    alertes_stock = AlerteStock.objects.filter(
+        resolue=False
+    ).order_by('-date_alerte')[:8]
+
+    return render(request, 'blood_bank/stats/view.html', {
+        'stats': {
+            'total_poches': total_poches,
+            'poches_ce_mois': poches_ce_mois,
+            'poches_disponibles': poches_disponibles,
+            'poches_rejetees': poches_rejetees,
+            'total_demandes': total_demandes,
+            'demandes_livrees': demandes_livrees,
+            'demandes_en_attente': demandes_en_attente,
+            'taux_satisfaction': taux,
+            'total_donneurs': Donneur.objects.count(),
+            'nouveaux_donneurs': Donneur.objects.filter(
+                date_inscription__month=today.month,
+                date_inscription__year=today.year
+            ).count(),
+            'groupes_demandes': groupes_demandes,
+            'stock_par_groupe': stock_par_groupe,
+            'stock_par_type': stock_par_type,
+        },
+        'alertes_stock': alertes_stock,
+    })
 
 
 # ============================================================
-# GÉOLOCALISATION - API JSON
+# ACCUEIL CANDIDAT
+# ============================================================
+
+@login_required
+@role_required('infirmier', 'medecin', 'accueil')
+def accueil_candidat(request):
+    if request.method == 'POST':
+        nom = request.POST.get('nom_complet', '').strip()
+        telephone = request.POST.get('telephone', '').strip()
+        type_visite = request.POST.get('type_visite', 'campagne')
+        age_ok = request.POST.get('age_ok') == 'on'
+        bonne_sante = request.POST.get('bonne_sante') == 'on'
+        pas_don_recent = request.POST.get('pas_don_recent') == 'on'
+        notes = request.POST.get('notes', '')
+        date_naissance_str = request.POST.get('date_naissance', '').strip()
+        poids_str = request.POST.get('poids', '').strip()
+
+        if not nom or not telephone:
+            messages.error(request, "Nom et téléphone obligatoires.")
+            return redirect('accueil_candidat')
+
+        # --- Date de naissance ---
+        if not date_naissance_str:
+            messages.error(request, "La date de naissance est obligatoire.")
+            return redirect('accueil_candidat')
+        try:
+            from datetime import datetime
+            date_naissance = datetime.strptime(date_naissance_str, '%Y-%m-%d').date()
+        except ValueError:
+            messages.error(request, "Format de date invalide. Utilisez AAAA-MM-JJ.")
+            return redirect('accueil_candidat')
+
+        # --- Poids ---
+        if not poids_str:
+            messages.error(request, "Le poids est obligatoire.")
+            return redirect('accueil_candidat')
+        try:
+            from decimal import Decimal
+            poids = Decimal(poids_str)
+        except ValueError:
+            messages.error(request, "Le poids doit être un nombre.")
+            return redirect('accueil_candidat')
+
+        # --- Création du candidat ---
+        candidat = CandidatDon(
+            nom_complet=nom,
+            telephone=telephone,
+            date_naissance=date_naissance,
+            poids=poids,
+            type_visite=type_visite,
+            age_ok=age_ok,
+            bonne_sante=bonne_sante,
+            pas_don_recent=pas_don_recent,
+            notes=notes,
+            accueilli_par=request.user,
+        )
+        candidat.evaluer_eligibilite()
+        candidat.save()
+
+        if candidat.eligible_don:
+            messages.success(request, f"✅ {nom} est éligible! Orientez vers l'entretien médical.")
+        else:
+            messages.warning(request, f"⚠ {nom} n'est pas éligible pour le moment.")
+        return redirect('accueil_candidat')
+
+    # GET : afficher le formulaire
+    candidats_jour = CandidatDon.objects.filter(
+        date_visite__date=timezone.now().date()
+    ).order_by('-date_visite')
+    return render(request, 'blood_bank/accueil/candidat.html', {
+        'type_choices': CandidatDon.TYPE_VISITE,
+        'candidats_jour': candidats_jour,
+        'criteres': [
+            ('age_ok', '🎂 Âge entre 18 et 65 ans'),
+            ('poids', '⚖️ Poids ≥ 50 kg'),
+            ('bonne_sante', '💪 En bonne santé — pas de fièvre'),
+            ('pas_don_recent', '📅 Pas de don dans les 56 derniers jours'),
+        ],
+    })
+
+
+# ============================================================
+# VISITEURS CNTS
+# ============================================================
+
+@login_required
+@role_required('infirmier', 'accueil', 'medecin')
+def visiteur_list(request):
+    q = request.GET.get('q', '')
+    visiteurs = VisiteurCNTS.objects.all()
+    if q:
+        visiteurs = visiteurs.filter(
+            Q(nom_complet__icontains=q) | Q(telephone__icontains=q)
+        )
+    return render(request, 'blood_bank/visiteurs/list.html', {
+        'visiteurs': visiteurs.order_by('-date_visite'), 'q': q,
+    })
+
+
+@login_required
+@role_required('infirmier', 'accueil', 'medecin')
+def visiteur_create(request):
+    if request.method == 'POST':
+        nom_complet = request.POST.get('nom_complet', '').strip()
+        telephone = request.POST.get('telephone', '').strip()
+        nom_patient = request.POST.get('nom_patient', '').strip()
+        prenom_patient = request.POST.get('prenom_patient', '').strip()
+        telephone_patient = request.POST.get('telephone_patient', '').strip()
+        groupe_patient = request.POST.get('groupe_patient', '').strip()
+        hopital_input = request.POST.get('hopital_patient', '').strip()
+        demande_id = request.POST.get('demande_associee', '').strip()
+
+        if not nom_complet or not telephone or not nom_patient:
+            messages.error(request, "Nom du donneur, téléphone et nom du patient sont obligatoires.")
+            return redirect('visiteur_create')
+
+        # ===== GESTION DE L'HÔPITAL (avec option "Autre") =====
+        hopital_patient = hopital_input
+        if hopital_input == 'autre':
+            hopital_patient = request.POST.get('hopital_patient_autre', '').strip()
+        # =====================================================
+
+        # Si une demande est associée
+        demande = None
+        if demande_id:
+            try:
+                demande = DemandeTransfusion.objects.get(pk=demande_id)
+            except DemandeTransfusion.DoesNotExist:
+                pass
+
+        visiteur = VisiteurCNTS.objects.create(
+            nom_complet=nom_complet,
+            telephone=telephone,
+            nom_patient=nom_patient,
+            prenom_patient=prenom_patient,
+            telephone_patient=telephone_patient,
+            groupe_patient=groupe_patient,
+            hopital_patient=hopital_patient,
+            date_naissance=request.POST.get('date_naissance') or None,
+            poids=request.POST.get('poids') or None,
+            type_visite='don_familial',
+            demande_associee=demande,
+            enregistre_par=request.user,
+            statut_don='en_attente'
+        )
+
+        messages.success(request, f"✅ Visiteur {nom_complet} enregistré pour le patient {nom_patient}.")
+        return redirect('visiteur_prelever', pk=visiteur.pk)
+
+    # GET : afficher le formulaire
+    hopitaux = Hopital.objects.filter(actif=True)
+    demandes_en_attente = DemandeTransfusion.objects.filter(
+        statut_demande='en_attente'
+    ).order_by('-date_demande')
+
+    return render(request, 'blood_bank/visiteurs/form.html', {
+        'hopitaux': hopitaux,
+        'demandes': demandes_en_attente,
+        'groupes': Donneur.GROUPE_CHOICES,
+    })
+@login_required
+def visiteur_detail(request, pk):
+    visiteur = get_object_or_404(VisiteurCNTS, pk=pk)
+    return render(request, 'blood_bank/visiteurs/detail.html', {
+        'visiteur': visiteur,
+    })
+
+
+@login_required
+@role_required('medecin', 'infirmier', 'accueil')
+def visiteur_prelever(request, pk):
+    visiteur = get_object_or_404(VisiteurCNTS, pk=pk)
+    if request.method == 'POST':
+        donneur, _ = Donneur.objects.get_or_create(
+            telephone=visiteur.telephone,
+            defaults={
+                'nom_complet': visiteur.nom_complet,
+                'groupe_sanguin': '',
+                'date_naissance': timezone.now().date()  - timedelta(days=25*365),
+                'sexe': 'M',
+                'poids': 70,
+            }
+        )
+        poche = PocheSang.objects.create(
+            donneur=donneur,
+            type_produit='sang_total',
+            statut='collectee',
+            date_prelevement=timezone.now().date(),
+            volume_ml=450,
+            lieu_collecte='CNTS Brazzaville',
+            creee_par=request.user,
+            notes=f"Don familial — Patient: {visiteur.nom_patient}"
+        )
+        TracabiliteEvenement.objects.create(
+            poche=poche, etape='prelevement',
+            effectue_par=request.user,
+            notes=f"Don familial — {visiteur.nom_complet} pour {visiteur.nom_patient}"
+        )
+        messages.success(request,
+            f"🩸 Poche {poche.code_barre} créée. Envoyez au labo.")
+        return redirect('poche_analyser', pk=poche.pk)
+    return render(request, 'blood_bank/visiteurs/prelevement.html', {
+        'visiteur': visiteur,
+        'title': f"Prélèvement — {visiteur.nom_complet}"
+    })
+
+
+# ============================================================
+# CANDIDATS À PRÉLEVER
+# ============================================================
+
+@login_required
+@role_required('medecin', 'infirmier', 'accueil')
+def candidats_a_prelever(request):
+    candidats = CandidatDon.objects.filter(
+        eligible_don=True,
+        examen_medical_valide=True, 
+        poches_prelevees__isnull=True   # ← Seulement ceux sans poche prélevée
+    ).order_by('-date_visite')
+    return render(request, 'blood_bank/prelevement/candidats_list.html', {'candidats': candidats})
+
+@login_required
+@role_required('medecin', 'infirmier')
+def prelever_candidat(request, pk):
+    candidat = get_object_or_404(CandidatDon, pk=pk)
+    if request.method == 'POST':
+        if not candidat.examen_medical_valide:
+            messages.error(request, "Ce candidat n'a pas encore été examiné par le médecin.")
+            return redirect('candidats_a_prelever')
+        donneur, _ = Donneur.objects.get_or_create(
+            telephone=candidat.telephone,
+            defaults={
+                'nom_complet': candidat.nom_complet,
+                'groupe_sanguin': '',
+                'date_naissance': timezone.now().date(),
+                'sexe': 'M',
+                
+            }
+        )
+        poche = PocheSang.objects.create(
+            donneur=donneur,
+            candidat_source=candidat, 
+            type_produit='sang_total',
+            statut='collectee',
+            date_prelevement=timezone.now().date(),
+            volume_ml=450,
+            lieu_collecte='CNTS Brazzaville',
+            creee_par=request.user,
+            notes=f"Candidat: {candidat.nom_complet}"
+        )
+        TracabiliteEvenement.objects.create(
+            poche=poche, etape='prelevement',
+            effectue_par=request.user,
+            notes=f"Prélèvement candidat {candidat.nom_complet}"
+        )
+        messages.success(request, f"✅ Poche {poche.code_barre} créée.")
+        return redirect('poche_analyser', pk=poche.pk)
+    # GET : afficher le formulaire de confirmation
+    return render(request, 'blood_bank/prelevement/prelever_candidat.html', {'candidat': candidat})
+@login_required
+@role_required('medecin', 'directeur')
+def examen_medical_candidat(request, pk):
+    candidat = get_object_or_404(CandidatDon, pk=pk)
+    if request.method == 'POST':
+        # Récupérer tous les critères
+        candidat.tension = request.POST.get('tension', '')
+        candidat.poids_ok = request.POST.get('poids_ok') == 'on'
+        candidat.tension_ok = request.POST.get('tension_ok') == 'on'
+        candidat.hemoglobine_ok = request.POST.get('hemoglobine_ok') == 'on'
+        candidat.pas_de_maladie = request.POST.get('pas_de_maladie') == 'on'
+        candidat.pas_de_medicament = request.POST.get('pas_de_medicament') == 'on'
+        candidat.pas_tuberculose = request.POST.get('pas_tuberculose') == 'on'
+        candidat.pas_fievre = request.POST.get('pas_fievre') == 'on'
+        candidat.pas_antecedents_risque = request.POST.get('pas_antecedents_risque') == 'on'
+        candidat.motif_inaptitude = request.POST.get('motif_inaptitude', '')
+        
+        # Groupe sanguin si déterminé
+        groupe_examen = request.POST.get('groupe_sanguin_examen', '').strip()
+        if groupe_examen and not candidat.groupe_sanguin:
+            candidat.groupe_sanguin = groupe_examen
+        
+        # Évaluation automatique de l'aptitude
+        apte = all([
+            candidat.poids_ok,
+            candidat.tension_ok,
+            candidat.hemoglobine_ok,
+            candidat.pas_de_maladie,
+            candidat.pas_de_medicament,
+            candidat.pas_tuberculose,
+            candidat.pas_fievre,
+            candidat.pas_antecedents_risque,
+        ])
+        
+        if apte:
+            candidat.examen_medical_valide = True
+            candidat.date_examen = timezone.now()
+            messages.success(request, f"✅ {candidat.nom_complet} est APTE au don.")
+            # Envoyer SMS au candidat
+            try:
+                envoyer_sms(candidat.telephone, f"Bonjour {candidat.nom_complet}, vous êtes apte au don. Merci!")
+            except:
+                pass
+        else:
+            candidat.examen_medical_valide = False
+            messages.warning(request, f"⚠ {candidat.nom_complet} est INAPTE. Motif: {candidat.motif_inaptitude or 'Non précisé'}")
+        
+        candidat.save()
+        return redirect('examen_candidats')
+    
+    return render(request, 'blood_bank/donneurs/examen_medical_candidat.html', {
+        'candidat': candidat,
+        'groupe_choices': Donneur.GROUPE_CHOICES,
+    })
+# ============================================================
+# HÔPITAUX GÉOLOCALISÉS
+# ============================================================
+
+@login_required
+def hopital_list(request):
+    return render(request, 'blood_bank/hopitaux/list.html', {
+        'hopitaux': Hopital.objects.filter(actif=True)
+    })
+
+
+@login_required
+@role_required('admin', 'directeur', 'gestionnaire')
+def hopital_create(request):
+    if request.method == 'POST':
+        nom = request.POST.get('nom', '').strip()
+        if nom:
+            lat = request.POST.get('latitude', '')
+            lng = request.POST.get('longitude', '')
+            Hopital.objects.create(
+                nom=nom,
+                adresse=request.POST.get('adresse', ''),
+                telephone=request.POST.get('telephone', ''),
+                quartier=request.POST.get('quartier', ''),
+                latitude=float(lat) if lat else None,
+                longitude=float(lng) if lng else None,
+            )
+            messages.success(request, f"✅ Hôpital {nom} ajouté.")
+            return redirect('hopital_list')
+    return render(request, 'blood_bank/hopitaux/form.html')
+
+
+# ============================================================
+# TRAÇABILITÉ
+# ============================================================
+
+@login_required
+def tracabilite_view(request, pk):
+    poche = get_object_or_404(PocheSang, pk=pk)
+    if request.method == 'POST':
+        etape = request.POST.get('etape')
+        temperature = request.POST.get('temperature', '')
+        hopital_id = request.POST.get('hopital_id', '')
+        evt = TracabiliteEvenement(
+            poche=poche, etape=etape,
+            effectue_par=request.user,
+            notes=request.POST.get('notes', ''),
+            temperature=float(temperature) if temperature else None,
+        )
+        if hopital_id:
+            try:
+                evt.hopital_id = int(hopital_id)
+            except Exception:
+                pass
+        evt.save()
+        if etape == 'livraison':
+            poche.statut = 'utilisee'
+            poche.save()
+        elif etape == 'rejet':
+            poche.statut = 'rejetee'
+            poche.save()
+        messages.success(request, "✅ Étape enregistrée.")
+        return redirect('tracabilite_view', pk=pk)
+
+    return render(request, 'blood_bank/poches/tracabilite.html', {
+        'poche': poche,
+        'evenements': poche.tracabilite.all().order_by('date_heure'),
+        'hopitaux': Hopital.objects.filter(actif=True),
+        'etapes': TracabiliteEvenement.ETAPE_CHOICES,
+    })
+
+
+# ============================================================
+# CARTE DONNEUR — Directeur uniquement émet
+# ============================================================
+
+@login_required
+@role_required('directeur', 'admin')
+def carte_donneur_view(request, pk):
+    donneur = get_object_or_404(Donneur, pk=pk)
+    config = Configuration.get_config()
+    nb_dons = PocheSang.objects.filter(
+        donneur=donneur,
+        statut__in=['disponible', 'attribuee', 'utilisee']
+    ).count()
+    eligible = nb_dons >= config.seuil_credits
+    carte = getattr(donneur, 'carte', None)
+
+    if request.method == 'POST' and eligible and not carte:
+        carte = CarteDonneur(donneur=donneur, emise_par=request.user)
+        carte.save()
+        carte.generer_qr_code()
+        messages.success(request, f"🎉 Carte {carte.numero_carte} générée!")
+        try:
+            envoyer_sms(donneur.telephone,
+                f"Félicitations {donneur.nom_complet}! "
+                f"Carte CNTS émise. N°{carte.numero_carte}.")
+        except Exception:
+            pass
+
+    return render(request, 'blood_bank/donneurs/carte_donneur.html', {
+        'donneur': donneur, 'carte': carte,
+        'nb_dons': nb_dons, 'eligible': eligible,
+        'seuil': config.seuil_credits,
+        'is_directeur': request.user.role == 'directeur',
+    })
+
+
+# ============================================================
+# RÉSULTATS — Donneur et Visiteur consultent leurs résultats
+# ============================================================
+
+def resultats_donneur(request, code_unique):
+    """Page publique — le donneur consulte avec son code unique"""
+    donneur = get_object_or_404(Donneur, code_unique=code_unique)
+    poches = PocheSang.objects.filter(
+        donneur=donneur
+    ).order_by('-date_prelevement')
+    return render(request, 'blood_bank/donneurs/resultats_donneur.html', {
+        'donneur': donneur,
+        'poches': poches,
+        'nb_dons': poches.filter(
+            statut__in=['disponible', 'attribuee', 'utilisee']
+        ).count(),
+        'apte': donneur.apte_au_don,
+    })
+
+
+def resultats_visiteur(request, telephone):
+    """Page publique — visiteur consulte avec son téléphone"""
+    visiteur = get_object_or_404(VisiteurCNTS, telephone=telephone)
+    return render(request, 'blood_bank/visiteurs/resultats.html', {
+        'visiteur': visiteur,
+    })
+
+
+def candidat_resultats(request, code_acces):
+    """Page résultats candidat — accès par téléphone"""
+    candidat = get_object_or_404(CandidatDon, telephone=code_acces)
+    return render(request, 'blood_bank/accueil/candidat.html', {
+        'candidat': candidat,
+        'type_choices': CandidatDon.TYPE_VISITE,
+        'candidats_jour': CandidatDon.objects.none(),
+        'criteres': [],
+    })
+
+
+# ============================================================
+# API JSON
 # ============================================================
 
 @login_required
 def api_donneurs_geo(request):
-    """API pour la carte géolocalisée des donneurs"""
-    donneurs = Donneur.objects.filter(actif=True, latitude__isnull=False)
-    data = []
-    for d in donneurs:
-        data.append({
-            'id': d.pk,
-            'nom': d.nom_complet,
-            'groupe': d.groupe_sanguin,
-            'lat': d.latitude,
-            'lon': d.longitude,
-            'quartier': d.quartier,
+    donneurs = Donneur.objects.filter(
+        latitude__isnull=False, longitude__isnull=False
+    )
+    return JsonResponse({
+        'donneurs': [{
+            'id': d.pk, 'nom': d.nom_complet,
+            'groupe': d.groupe_sanguin or '?',
+            'lat': d.latitude, 'lon': d.longitude,
             'peut_donner': d.peut_donner(),
-            'type': d.type_donneur,
-            'est_risque': d.est_donneur_risque,
-        })
-    return JsonResponse({'donneurs': data, 'total': len(data)})
+        } for d in donneurs],
+        'total': donneurs.count()
+    })
+
+
+@login_required
+def api_hopitaux_geo(request):
+    hopitaux = Hopital.objects.filter(actif=True, latitude__isnull=False)
+    return JsonResponse({
+        'hopitaux': [{
+            'id': h.pk, 'nom': h.nom,
+            'lat': h.latitude, 'lng': h.longitude,
+            'telephone': h.telephone,
+        } for h in hopitaux],
+        'total': hopitaux.count()
+    })
 
 
 @login_required
 def api_stock(request):
-    """API pour les données de stock en temps réel"""
-    groupes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
     data = {}
-    for type_produit, _ in PocheSang.TYPE_PRODUIT_CHOICES:
-        data[type_produit] = {}
-        for g in groupes:
-            data[type_produit][g] = PocheSang.objects.filter(
+    for type_code, _ in PocheSang.TYPE_PRODUIT_CHOICES:
+        data[type_code] = {}
+        for g in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
+            data[type_code][g] = PocheSang.objects.filter(
                 groupe_sanguin=g,
-                type_produit=type_produit,
+                type_produit=type_code,
                 statut='disponible'
             ).count()
     return JsonResponse(data)
 
 
+@login_required
+def api_statistiques(request, type_stat):
+    today = timezone.now().date()
+    if type_stat == 'dons_par_periode':
+        jours = 7 if request.GET.get('periode') == 'semaine' else 30
+        data = []
+        for i in range(jours - 1, -1, -1):
+            jour = today - timedelta(days=i)
+            data.append({
+                'date': jour.strftime('%d/%m'),
+                'count': PocheSang.objects.filter(date_prelevement=jour).count()
+            })
+        return JsonResponse({'data': data})
+    elif type_stat == 'repartition_groupes':
+        return JsonResponse({'data': [
+            {'groupe': g, 'count': Donneur.objects.filter(groupe_sanguin=g).count()}
+            for g in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+        ]})
+    elif type_stat == 'stock_par_groupe':
+        return JsonResponse({'data': [
+            {'groupe': g, 'count': PocheSang.objects.filter(
+                groupe_sanguin=g, statut='disponible'
+            ).count()}
+            for g in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+        ]})
+    return JsonResponse({'error': 'Type invalide'}, status=400)
+
+
 # ============================================================
-# USSD ENDPOINT (Africa's Talking)
+# USSD ENDPOINT — Africa's Talking
 # ============================================================
 
 @csrf_exempt
 def ussd_endpoint(request):
-    """
-    Endpoint USSD pour Africa's Talking
-    POST: sessionId, serviceCode, phoneNumber, text
-    """
     if request.method == 'POST':
-        session_id = request.POST.get('sessionId', '')
-        service_code = request.POST.get('serviceCode', '')
-        phone_number = request.POST.get('phoneNumber', '')
-        text = request.POST.get('text', '')
-
-        response = handle_ussd(session_id, service_code, phone_number, text)
+        response = handle_ussd(
+            request.POST.get('sessionId', ''),
+            request.POST.get('serviceCode', ''),
+            request.POST.get('phoneNumber', ''),
+            request.POST.get('text', '')
+        )
         return HttpResponse(response, content_type='text/plain')
-
     return HttpResponse("Méthode non autorisée", status=405)
 
 
 # ============================================================
-# PROFIL UTILISATEUR
+# PROFIL
 # ============================================================
 
 @login_required
@@ -1236,668 +1962,107 @@ def profil_edit(request):
     return render(request, 'blood_bank/utilisateurs/form.html', {
         'form': form, 'title': 'Mon profil'
     })
-
-
-# ============================================================
-# GESTION DES PRIX ET RÉDUCTIONS PAR LE DIRECTEUR
-# ============================================================
-
 @login_required
-@role_required('directeur', 'admin')
-def approuver_prix_solidaire(request, pk):
-    demande = get_object_or_404(DemandeTransfusion, pk=pk)
-
-    if request.method == 'POST':
-        motif = request.POST.get('motif_solidaire', '').strip()
-        annuler = request.POST.get('annuler_solidaire') == '1'
-        nouveau_prix = request.POST.get('prix_personnalise', '')
-
-        if annuler:
-            demande.prix_solidaire_approuve = False
-            demande.approuve_par = None
-            demande.motif_solidaire = ''
-            demande.prix_final = demande.calculer_prix()
-            demande.save()
-            messages.info(request, "Prix solidaire annulé — tarif standard appliqué.")
-        elif nouveau_prix:
-            demande.prix_solidaire_approuve = True
-            demande.approuve_par = request.user
-            demande.motif_solidaire = motif or "Prix personnalisé approuvé par le Directeur"
-            demande.prix_final = int(nouveau_prix)
-            demande.save()
-            messages.success(
-                request,
-                f"✅ Prix personnalisé de {int(nouveau_prix)} FCFA approuvé par le Directeur."
-            )
-        else:
-            demande.prix_solidaire_approuve = True
-            demande.approuve_par = request.user
-            demande.motif_solidaire = motif or "Approuvé par le Directeur"
-            demande.prix_final = demande.calculer_prix()
-            demande.save()
-            config = Configuration.get_config()
-            messages.success(
-                request,
-                f"✅ Prix solidaire approuvé par le Directeur. "
-                f"Nouveau prix : {config.prix_reduit} FCFA/poche "
-                f"au lieu de {config.prix_standard} FCFA."
-            )
-
-    return redirect('demande_detail', pk=pk)
-
-
-# ============================================================
-# EXAMEN MÉDICAL — 2 cas + Classification Donneur/Non-donneur
-# ============================================================
-
-@login_required
-@role_required('medecin', 'admin', 'directeur')
-def examen_medical_create(request, pk):
-    """
-    Cas 1 : Donneur déjà enregistré → médecin examine sa fiche
-    Cas 2 : Nouveau candidat → si apte, donneur devient actif
-    """
-    donneur = get_object_or_404(Donneur, pk=pk)
-    examen_existant = getattr(donneur, 'examen_medical', None)
-
-    if request.method == 'POST':
-        poids_ok = request.POST.get('poids_ok') == 'on'
-        tension_ok = request.POST.get('tension_ok') == 'on'
-        hemoglobine_ok = request.POST.get('hemoglobine_ok') == 'on'
-        pas_de_maladie = request.POST.get('pas_de_maladie') == 'on'
-        pas_de_medicament = request.POST.get('pas_de_medicament') == 'on'
-        pas_operation_recente = request.POST.get('pas_operation_recente') == 'on'
-        pas_grossesse = request.POST.get('pas_grossesse') == 'on'
-        pas_allaitement = request.POST.get('pas_allaitement') == 'on'
-        pas_tatouage = request.POST.get('pas_tatouage') == 'on'
-        pas_voyage_risque = request.POST.get('pas_voyage_risque') == 'on'
-        motif = request.POST.get('motif_inaptitude', '')
-
-        # Mise à jour groupe sanguin si déterminé lors examen
-        groupe_examen = request.POST.get('groupe_sanguin_examen', '').strip()
-        if groupe_examen and not donneur.groupe_sanguin:
-            donneur.groupe_sanguin = groupe_examen
-
-        examen, created = ExamenMedical.objects.get_or_create(donneur=donneur)
-        examen.poids_ok = poids_ok
-        examen.tension_ok = tension_ok
-        examen.hemoglobine_ok = hemoglobine_ok
-        examen.pas_de_maladie = pas_de_maladie
-        examen.pas_de_medicament = pas_de_medicament
-        examen.pas_operation_recente = pas_operation_recente
-        examen.pas_grossesse = pas_grossesse
-        examen.pas_allaitement = pas_allaitement
-        examen.pas_tatouage = pas_tatouage
-        examen.pas_voyage_risque = pas_voyage_risque
-        examen.motif_inaptitude = motif
-        examen.medecin_examinateur = request.user
-
-        # Tous les critères doivent être OK
-        tous_ok = all([
-            poids_ok, tension_ok, hemoglobine_ok,
-            pas_de_maladie, pas_de_medicament,
-            pas_operation_recente, pas_grossesse,
-            pas_allaitement, pas_tatouage, pas_voyage_risque
-        ])
-
-        if tous_ok:
-            examen.resultat = 'apte'
-            # Classification : donneur actif
-            donneur.actif = True
-            donneur.classification = 'donneur'
-            donneur.save()
-            examen.save()
-            messages.success(
-                request,
-                f"✅ {donneur.nom_complet} est déclaré APTE au don "
-                f"par Dr. {request.user.get_full_name() or request.user.username}. "
-                f"Il peut maintenant donner son sang !"
-            )
-            # Envoyer SMS au donneur avec les vraies clés API
-            try:
-                import africastalking
-                from django.conf import settings
-                africastalking.initialize(
-                    settings.AFRICASTALKING_USERNAME,
-                    settings.AFRICASTALKING_API_KEY
-                )
-                sms = africastalking.SMS
-                sms.send(
-                    f"Bonjour {donneur.nom_complet}, "
-                    f"votre examen médical au CNTS Brazzaville est validé. "
-                    f"Vous êtes apte au don de sang. Merci !",
-                    [donneur.telephone]
-                )
-            except Exception as e:
-                print(f"Erreur envoi SMS: {e}")
-        else:
-            examen.resultat = 'inapte_temporaire'
-            # Classification : non-donneur
-            donneur.actif = False
-            donneur.classification = 'non_donneur'
-            donneur.save()
-            examen.save()
-            messages.warning(
-                request,
-                f"⚠ {donneur.nom_complet} est déclaré INAPTE au don "
-                f"pour le moment. Motif : {motif or 'Non précisé'}"
-            )
-
-        return redirect('donneur_detail', pk=pk)
-
-    return render(request, 'blood_bank/donneurs/examen_medical.html', {
-        'donneur': donneur,
-        'examen': examen_existant,
-        'groupe_choices': Donneur.GROUPE_CHOICES,
-        'is_new': not examen_existant,
-    })
-
-
-@login_required
-def examen_en_attente(request):
-    """Liste des donneurs en attente d'examen médical"""
-    donneurs_sans_examen = Donneur.objects.filter(
-        actif=False,
-        classification='candidat'
-    ).exclude(examen_medical__isnull=False)
-
-    donneurs_inaptes = Donneur.objects.filter(
-        classification='non_donneur',
-        examen_medical__resultat='inapte_temporaire'
-    )
-
-    return render(request, 'blood_bank/donneurs/examens_attente.html', {
-        'donneurs_sans_examen': donneurs_sans_examen,
-        'donneurs_inaptes': donneurs_inaptes,
-    })
-
-
-# ============================================================
-# VISITEURS CNTS
-# ============================================================
-# views.py
-
-@login_required
-def visiteur_create(request):
-    """
-    Enregistrement d'un visiteur (donneur familial) et prélèvement
-    """
-    if request.method == 'POST':
-        # Récupérer les données du formulaire
-        nom_complet = request.POST.get('nom_complet', '').strip()
-        telephone = request.POST.get('telephone', '').strip()
-        nom_patient = request.POST.get('nom_patient', '').strip()
-        prenom_patient = request.POST.get('prenom_patient', '').strip()
-        telephone_patient = request.POST.get('telephone_patient', '').strip()
-        groupe_patient = request.POST.get('groupe_patient', '').strip()
-        hopital_patient = request.POST.get('hopital_patient', '').strip()
-        demande_id = request.POST.get('demande_associee', '')
-
-        if not nom_complet or not telephone or not nom_patient:
-            messages.error(request, "Les champs nom, téléphone et nom du patient sont obligatoires.")
-            return redirect('visiteur_create')
-
-        # Vérifier si une demande existe pour ce patient
-        demande = None
-        if demande_id:
-            try:
-                demande = DemandeTransfusion.objects.get(pk=demande_id)
-            except DemandeTransfusion.DoesNotExist:
-                pass
-
-        # Créer le visiteur
-        visiteur = VisiteurCNTS.objects.create(
-            nom_complet=nom_complet,
-            telephone=telephone,
-            type_visite='don_familial',
-            nom_patient=nom_patient,
-            prenom_patient=prenom_patient,
-            telephone_patient=telephone_patient,
-            groupe_patient=groupe_patient,
-            hopital_patient=hopital_patient,
-            demande_associee=demande,
-            enregistre_par=request.user,
-            statut_don='en_attente'
-        )
-
-        messages.success(
-            request,
-            f"✅ Visiteur {nom_complet} enregistré pour le patient {nom_patient}. "
-            f"Procédez maintenant au prélèvement."
-        )
-
-        # Rediriger vers la page de prélèvement
-        return redirect('visiteur_prelever', pk=visiteur.pk)
-
-    # GET : afficher le formulaire
-    demandes_en_attente = DemandeTransfusion.objects.filter(
-        statut_demande='en_attente'
-    ).order_by('-date_demande')
-
-    hopitaux = Hopital.objects.filter(actif=True)
-
-    return render(request, 'blood_bank/visiteurs/form.html', {
-        'demandes': demandes_en_attente,
-        'hopitaux': hopitaux,
-        'groupes': Donneur.GROUPE_CHOICES,
-    })
-
-
-@login_required
-@role_required('infirmier', 'medecin', 'admin')
-def visiteur_prelever(request, pk):
-    """
-    Prélèvement du sang du visiteur
-    """
-    visiteur = get_object_or_404(VisiteurCNTS, pk=pk)
-
-    if visiteur.statut_don != 'en_attente':
-        messages.warning(request, "Ce don a déjà été prélevé.")
-        return redirect('visiteur_detail', pk=pk)
-
-    if request.method == 'POST':
-        # Créer la poche de sang
-        poche = visiteur.creer_poche_sang(request.user)
-
-        messages.success(
-            request,
-            f"🩸 Prélèvement effectué avec succès !\n"
-            f"Poche N°: {poche.code_barre}\n"
-            f"Patient: {visiteur.nom_patient}\n"
-            f"La poche est maintenant en cours d'analyse au laboratoire."
-        )
-
-        # Envoyer SMS au visiteur
-        try:
-            import africastalking
-            from django.conf import settings
-            africastalking.initialize(
-                settings.AFRICASTALKING_USERNAME,
-                settings.AFRICASTALKING_API_KEY
-            )
-            sms = africastalking.SMS
-            message = (
-                f"CNTS - Votre don pour {visiteur.nom_patient} a été prélevé.\n"
-                f"Code poche: {poche.code_barre}\n"
-                f"Les résultats seront disponibles dans 48h.\n"
-                f"Merci pour votre geste solidaire !"
-            )
-            sms.send(message, [visiteur.telephone])
-        except Exception as e:
-            print(f"Erreur envoi SMS: {e}")
-
-        return redirect('poche_analyser', pk=poche.pk)
-
-    return render(request, 'blood_bank/visiteurs/prelevement.html', {
-        'visiteur': visiteur,
-    })
-
-
-@login_required
-def visiteur_detail(request, pk):
-    """
-    Détail du visiteur et suivi de sa poche
-    """
-    visiteur = get_object_or_404(VisiteurCNTS, pk=pk)
-    poche = visiteur.poche_associee
-
-    return render(request, 'blood_bank/visiteurs/detail.html', {
-        'visiteur': visiteur,
-        'poche': poche,
-    })
-
-
-@login_required
-def visiteur_list(request):
-    """
-    Liste des visiteurs (donneurs familiaux)
-    """
-    statut = request.GET.get('statut', '')
+@role_required('medecin', 'directeur')
+def recherche_medicale(request):
     q = request.GET.get('q', '')
-
-    visiteurs = VisiteurCNTS.objects.select_related('poche_associee', 'demande_associee')
-
-    if statut:
-        visiteurs = visiteurs.filter(statut_don=statut)
+    donneurs = []
+    poches = []
     if q:
-        visiteurs = visiteurs.filter(
+        donneurs = Donneur.objects.filter(
             Q(nom_complet__icontains=q) |
-            Q(nom_patient__icontains=q) |
+            Q(code_unique__icontains=q) |
             Q(telephone__icontains=q)
         )
-
-    return render(request, 'blood_bank/visiteurs/list.html', {
-        'visiteurs': visiteurs,
-        'statut': statut,
+        poches = PocheSang.objects.filter(
+            Q(code_barre__icontains=q) |
+            Q(donneur__nom_complet__icontains=q) |
+            Q(groupe_sanguin__icontains=q)
+        )
+    return render(request, 'blood_bank/donneurs/recherche_medical.html', {
         'q': q,
-        'statuts': VisiteurCNTS.STATUT_DON,
+        'donneurs': donneurs,
+        'poches': poches,
     })
 
 # ============================================================
-# CARTE DONNEUR AVEC PHOTO ET QR CODE - RÉSERVÉ AU DIRECTEUR
+# RÉSULTATS DONNEUR (consultation publique par code unique)
 # ============================================================
 
+def resultats_donneur(request, code):
+    donneur = get_object_or_404(Donneur, code_unique=code)
+    poches = PocheSang.objects.filter(donneur=donneur).order_by('-date_prelevement')
+    return render(request, 'blood_bank/donneurs/resultats_donneur.html', {'donneur': donneur, 'poches': poches})
 @login_required
-def carte_donneur_view(request, pk):
+@role_required('medecin', 'directeur')
+def examen_candidats(request):
+    candidats = CandidatDon.objects.filter(
+        eligible_don=True,
+        examen_medical_valide=False,
+        type_visite__in=['campagne', 'deviendra_donneur']
+    ).order_by('-date_visite')
+    return render(request, 'blood_bank/donneurs/examen_candidats.html', {'candidats': candidats})
+@login_required
+@role_required('medecin', 'directeur')
+def readmettre_donneur(request, pk):
     donneur = get_object_or_404(Donneur, pk=pk)
-    config = Configuration.get_config()
-    nb_dons = PocheSang.objects.filter(
-        donneur=donneur,
-        statut__in=['disponible', 'attribuee', 'utilisee']
-    ).count()
-
-    eligible = nb_dons >= config.seuil_credits
-    carte = getattr(donneur, 'carte', None)
-    is_directeur = request.user.role in ['directeur', 'admin']
-
-    # Seul le directeur peut générer la carte manuellement
-    if request.method == 'POST' and is_directeur and eligible and not carte:
-        carte = CarteDonneur(donneur=donneur, emise_par=request.user)
-
-        # Générer le QR code
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr_data = f"CNTS-DONNEUR-{donneur.code_unique}\n{donneur.nom_complet}\nGroupe: {donneur.groupe_sanguin}"
-        qr.add_data(qr_data)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-
-        # Sauvegarder le QR code
-        buffer = BytesIO()
-        img.save(buffer, format='PNG')
-        qr_base64 = base64.b64encode(buffer.getvalue()).decode()
-        carte.qr_code_data = qr_base64
-
-        carte.save()
-        messages.success(
-            request,
-            f"🎉 Carte donneur générée par le Directeur ! "
-            f"Numéro : {carte.numero_carte}"
-        )
-
-        # SMS au donneur avec les vraies clés API Africa's Talking
-        try:
-            import africastalking
-            from django.conf import settings
-            africastalking.initialize(
-                settings.AFRICASTALKING_USERNAME,
-                settings.AFRICASTALKING_API_KEY
-            )
-            sms = africastalking.SMS
-            sms.send(
-                f"Félicitations {donneur.nom_complet} ! "
-                f"Votre carte de donneur CNTS a été émise. "
-                f"N° {carte.numero_carte}. Merci pour vos {nb_dons} dons !",
-                [donneur.telephone]
-            )
-        except Exception as e:
-            print(f"Erreur envoi SMS: {e}")
-
-    return render(request, 'blood_bank/donneurs/carte_donneur.html', {
-        'donneur': donneur,
-        'carte': carte,
-        'nb_dons': nb_dons,
-        'eligible': eligible,
-        'seuil': config.seuil_credits,
-        'is_directeur': is_directeur,
-    })
-
-
-# ============================================================
-# HÔPITAUX GÉOLOCALISÉS
-# ============================================================
-
+    if donneur.date_suspension_paludisme:
+        donneur.date_suspension_paludisme = None
+        donneur.date_retour_autorise = None
+        donneur.actif = True
+        donneur.classification = 'donneur'
+        donneur.save()
+        messages.success(request, f"{donneur.nom_complet} a été réadmis.")
+    return redirect('donneur_detail', pk=pk) 
 @login_required
-def hopital_list(request):
-    hopitaux = Hopital.objects.filter(actif=True)
-    return render(request, 'blood_bank/hopitaux/list.html', {
-        'hopitaux': hopitaux,
-    })
-
-
-@login_required
-@role_required('admin', 'directeur', 'gestionnaire')
-def hopital_create(request):
-    if request.method == 'POST':
-        nom = request.POST.get('nom', '').strip()
-        adresse = request.POST.get('adresse', '').strip()
-        telephone = request.POST.get('telephone', '').strip()
-        quartier = request.POST.get('quartier', '').strip()
-        lat = request.POST.get('latitude', '')
-        lng = request.POST.get('longitude', '')
-        if nom:
-            Hopital.objects.create(
-                nom=nom, adresse=adresse,
-                telephone=telephone, quartier=quartier,
-                latitude=float(lat) if lat else None,
-                longitude=float(lng) if lng else None,
-            )
-            messages.success(request, f"✅ Hôpital {nom} ajouté.")
-            return redirect('hopital_list')
-    return render(request, 'blood_bank/hopitaux/form.html')
-
-
-@login_required
-def api_hopitaux_geo(request):
-    hopitaux = Hopital.objects.filter(
-        actif=True,
-        latitude__isnull=False,
-        longitude__isnull=False
-    )
-    data = {
-        'hopitaux': [
-            {
-                'id': h.pk,
-                'nom': h.nom,
-                'adresse': h.adresse,
-                'telephone': h.telephone,
-                'quartier': h.quartier,
-                'lat': h.latitude,
-                'lng': h.longitude,
-            }
-            for h in hopitaux
-        ],
-        'total': hopitaux.count()
-    }
-    return JsonResponse(data)
-
-
-# ============================================================
-# TRAÇABILITÉ COMPLÈTE
-# ============================================================
-
-@login_required
-def tracabilite_view(request, pk):
-    poche = get_object_or_404(PocheSang, pk=pk)
-
-    if request.method == 'POST':
-        etape = request.POST.get('etape')
-        notes = request.POST.get('notes', '')
-        hopital_id = request.POST.get('hopital_id')
-        temperature = request.POST.get('temperature', '')
-        position = request.POST.get('position', '')
-        latitude = request.POST.get('latitude', '')
-        longitude = request.POST.get('longitude', '')
-
-        evenement = TracabiliteEvenement(
-            poche=poche,
-            etape=etape,
-            effectue_par=request.user,
-            notes=notes,
-            temperature=float(temperature) if temperature else None,
-            position=position,
-            latitude=float(latitude) if latitude else None,
-            longitude=float(longitude) if longitude else None,
-        )
-        if hopital_id:
-            evenement.hopital_id = int(hopital_id)
-        evenement.save()
-
-        # Mettre à jour statut poche selon étape
-        if etape == 'livraison':
-            poche.statut = 'utilisee'
-            poche.save()
-        elif etape == 'rejet':
-            poche.statut = 'rejetee'
-            poche.save()
-
-        messages.success(request, f"✅ Étape '{evenement.get_etape_display()}' enregistrée.")
-        return redirect('tracabilite_view', pk=pk)
-
-    evenements = poche.tracabilite.all().order_by('date_heure')
-    hopitaux = Hopital.objects.filter(actif=True)
-    return render(request, 'blood_bank/poches/tracabilite.html', {
-        'poche': poche,
-        'evenements': evenements,
-        'hopitaux': hopitaux,
-        'etapes': TracabiliteEvenement.ETAPE_CHOICES,
-    })
-
-
-# ============================================================
-# ACCUEIL CANDIDAT — Donneur vs Non-donneur
-# ============================================================
-
-@login_required
-def accueil_candidat(request):
+@role_required('medecin', 'directeur')
+def readmettre_donneur(request, pk):
+    donneur = get_object_or_404(Donneur, pk=pk)
+    if donneur.date_suspension_paludisme:
+        donneur.date_suspension_paludisme = None
+        donneur.date_retour_autorise = None
+        donneur.actif = True
+        donneur.classification = 'donneur'
+        donneur.save()
+        messages.success(request, f"{donneur.nom_complet} a été réadmis.")
+    return redirect('donneur_detail', pk=pk)
+def pre_enregistrement_donneur(request):
     if request.method == 'POST':
         nom = request.POST.get('nom_complet', '').strip()
         telephone = request.POST.get('telephone', '').strip()
-        type_visite = request.POST.get('type_visite', 'nouveau_donneur')
-        age_ok = request.POST.get('age_ok') == 'on'
-        poids_ok = request.POST.get('poids_ok') == 'on'
-        bonne_sante = request.POST.get('bonne_sante') == 'on'
-        pas_don_recent = request.POST.get('pas_don_recent') == 'on'
-        notes = request.POST.get('notes', '')
-
-        # Vérifier si le candidat existe déjà
-        donneur_existant = Donneur.objects.filter(telephone=telephone).first()
-
-        if donneur_existant:
-            type_visite = 'donneur_existant'
-            candidat = CandidatDon(
+        email = request.POST.get('email', '').strip()
+        if nom and telephone:
+            PreEnregistrementDonneur.objects.create(
                 nom_complet=nom,
                 telephone=telephone,
-                type_visite=type_visite,
-                age_ok=age_ok,
-                poids_ok=poids_ok,
-                bonne_sante=bonne_sante,
-                pas_don_recent=pas_don_recent,
-                notes=notes,
-                accueilli_par=request.user,
-                donneur_associe=donneur_existant,
+                email=email
             )
+            # Envoyer un email à l'infirmier (à adapter)
+            send_mail(
+                'Nouvelle demande de pré‑enregistrement donneur',
+                f"Nom: {nom}\nTéléphone: {telephone}\nEmail: {email}",
+                settings.DEFAULT_FROM_EMAIL,
+                ['cntscongobrazzaville@gmail.com'],  # ← à remplacer par l'email réel de l'infirmier
+                fail_silently=False,
+            )
+            return JsonResponse({'success': True, 'message': 'Votre demande a été envoyée. Vous serez contacté.'})
         else:
-            candidat = CandidatDon(
-                nom_complet=nom,
-                telephone=telephone,
-                type_visite=type_visite,
-                age_ok=age_ok,
-                poids_ok=poids_ok,
-                bonne_sante=bonne_sante,
-                pas_don_recent=pas_don_recent,
-                notes=notes,
-                accueilli_par=request.user,
-            )
+            return JsonResponse({'success': False, 'message': 'Le nom et le téléphone sont obligatoires.'})
+    return JsonResponse({'success': False, 'message': 'Méthode non autorisée.'})
 
-        candidat.evaluer_eligibilite()
-        candidat.save()
-
-        if candidat.eligible_don and type_visite == 'nouveau_donneur':
-            messages.success(
-                request,
-                f"✅ {nom} est éligible au don ! "
-                f"Orientez-le vers l'examen médical."
-            )
-            # Créer un donneur en attente d'examen
-            donneur = Donneur.objects.create(
-                nom_complet=nom,
-                telephone=telephone,
-                actif=False,
-                classification='candidat'
-            )
-            candidat.donneur_associe = donneur
-            candidat.save()
-        elif type_visite == 'donneur_existant' and donneur_existant:
-            messages.info(
-                request,
-                f"📋 Donneur existant — {donneur_existant.nom_complet} "
-                f"({donneur_existant.classification})"
-            )
-        elif type_visite in ['rendre_poche', 'famille_patient']:
-            messages.info(request, f"🩸 Enregistrement de la visite de {nom}.")
-        else:
-            messages.warning(
-                request,
-                f"⚠ {nom} n'est pas éligible au don pour le moment."
-            )
-        return redirect('accueil_candidat')
-
-    candidats_jour = CandidatDon.objects.filter(
-        date_visite__date=timezone.now().date()
-    ).order_by('-date_visite')
-
-    return render(request, 'blood_bank/accueil/candidat.html', {
-        'type_choices': CandidatDon.TYPE_VISITE,
-        'candidats_jour': candidats_jour,
-    })
-
-
-# ============================================================
-# API POUR STATISTIQUES INTERACTIVES
-# ============================================================
-
+# Vue pour lister les pré‑enregistrements (infirmier uniquement)
 @login_required
-def api_statistiques(request, type_stat):
-    """API pour les statistiques interactives"""
-    if type_stat == 'dons_par_periode':
-        periode = request.GET.get('periode', 'mois')
-        today = timezone.now().date()
+@role_required('infirmier', 'admin')
+def liste_pre_enregistrements(request):
+    demandes = PreEnregistrementDonneur.objects.filter(traite=False).order_by('-date_demande')
+    return render(request, 'blood_bank/liste_pre_enregistrements.html', {'demandes': demandes})
 
-        if periode == 'semaine':
-            data = []
-            for i in range(6, -1, -1):
-                jour = today - timedelta(days=i)
-                count = PocheSang.objects.filter(date_prelevement=jour).count()
-                data.append({'date': jour.strftime('%d/%m'), 'count': count})
-        elif periode == 'mois':
-            data = []
-            for i in range(29, -1, -1):
-                jour = today - timedelta(days=i)
-                if jour.month == today.month:
-                    count = PocheSang.objects.filter(date_prelevement=jour).count()
-                    data.append({'date': jour.strftime('%d/%m'), 'count': count})
-        elif periode == 'annee':
-            data = []
-            for mois in range(1, 13):
-                count = PocheSang.objects.filter(
-                    date_prelevement__month=mois,
-                    date_prelevement__year=today.year
-                ).count()
-                data.append({'mois': f"{mois:02d}/{today.year}", 'count': count})
-        else:
-            data = []
-
-        return JsonResponse({'data': data})
-
-    elif type_stat == 'repartition_groupes':
-        data = []
-        for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
-            count = Donneur.objects.filter(groupe_sanguin=groupe, actif=True).count()
-            data.append({'groupe': groupe, 'count': count})
-        return JsonResponse({'data': data})
-
-    elif type_stat == 'evolution_stock':
-        data = {}
-        for type_produit, type_label in PocheSang.TYPE_PRODUIT_CHOICES:
-            data[type_label] = []
-            for i in range(29, -1, -1):
-                jour = timezone.now().date() - timedelta(days=i)
-                count = PocheSang.objects.filter(
-                    type_produit=type_produit,
-                    date_prelevement__lte=jour,
-                    statut='disponible'
-                ).count()
-                data[type_label].append({'date': jour.strftime('%d/%m'), 'count': count})
-        return JsonResponse(data)
-
-    return JsonResponse({'error': 'Type de statistique invalide'}, status=400)
+# Vue pour marquer une demande comme traitée
+@login_required
+@role_required('infirmier', 'admin')
+def traiter_pre_enregistrement(request, pk):
+    demande = get_object_or_404(PreEnregistrementDonneur, pk=pk)
+    demande.traite = True
+    demande.save()
+    messages.success(request, f"Demande de {demande.nom_complet} marquée comme traitée.")
+    return redirect('liste_pre_enregistrements')

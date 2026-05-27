@@ -1,79 +1,236 @@
 {% extends 'blood_bank/base.html' %}
+{% block title %}Analyser la poche - CNTS{% endblock %}
+{% block page_title %}Analyse de la poche {{ poche.code_barre }}{% endblock %}
+
 {% block content %}
-<div class="container">
-  <h2>Analyse laboratoire - {{ poche.code_barre }}</h2>
+<div class="page-header">
+  <div>
+    <div class="page-subtitle">
+      {% if poche.donneur %}
+        Donneur : {{ poche.donneur.nom_complet }}
+        {% if poche.donneur.groupe_sanguin %}
+          <span class="blood-badge blood-{{ poche.donneur.groupe_sanguin|first|lower }}">{{ poche.donneur.groupe_sanguin }}</span>
+        {% else %}
+          <span class="badge bg-warning text-dark">⚠️ Groupe non déterminé</span>
+        {% endif %}
+      {% elif poche.candidat_source %}
+        Candidat campagne : {{ poche.candidat_source.nom_complet }}
+        {% if poche.groupe_sanguin %}
+          <span class="blood-badge blood-{{ poche.groupe_sanguin|first|lower }}">{{ poche.groupe_sanguin }}</span>
+        {% else %}
+          <span class="badge bg-warning text-dark">⚠️ Groupe non déterminé</span>
+        {% endif %}
+      {% else %}
+        Source inconnue
+      {% endif %}
+    </div>
+  </div>
+  <a href="{% url 'poche_list' %}" class="btn-outline">
+    <i class="bi bi-arrow-left"></i> Retour
+  </a>
+</div>
 
-  <form method="post">
-    {% csrf_token %}
-
+<div class="row">
+  <!-- COLONNE GAUCHE : LE FORMULAIRE -->
+  <div class="col-md-8">
     <div class="card">
-      <div class="card-header">
-        <h4>Tests médicaux</h4>
+      <div class="card-header" style="font-weight: bold; font-size: 16px;">
+        <i class="bi bi-flask"></i> Saisie des résultats du laboratoire
       </div>
       <div class="card-body">
-        <div class="row">
-          <div class="col-md-6">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_vih" name="test_vih">
-              <label class="form-check-label" for="test_vih">Test VIH - Négatif</label>
-            </div>
+        
+        <form method="post" action="{% url 'poche_analyser' poche.pk %}">
+>
+          {% csrf_token %}
 
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_hepatite_b" name="test_hepatite_b">
-              <label class="form-check-label" for="test_hepatite_b">Test Hépatite B - Négatif</label>
-            </div>
+          <!-- Section groupe sanguin si le donneur n'en a pas -->
+          {% if donneur_sans_groupe %}
+          <div class="alert alert-warning" style="border-left: 4px solid #ffc107; background-color: #fff9e6;">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Action Requise :</strong> Cette personne a été enregistrée sans groupe sanguin.
+            Veuillez le déterminer suite à vos analyses.
+          </div>
 
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_hepatite_c" name="test_hepatite_c">
-              <label class="form-check-label" for="test_hepatite_c">Test Hépatite C - Négatif</label>
+          <div class="form-group mb-4" style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6;">
+            <label class="form-label" style="font-weight: bold; font-size: 16px; color: var(--crimson);">
+              <i class="bi bi-droplet"></i> Détermination du Groupe Sanguin
+            </label>
+            <div class="row mt-2">
+              <div class="col-md-12">
+                <div class="btn-group" role="group" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                  {% for groupe in groupes_sanguins %}
+                  <label class="btn btn-outline-danger" style="flex: 1; min-width: 80px; border-radius: 8px;">
+                    <input type="radio" name="groupe_sanguin_donneur" value="{{ groupe }}" class="btn-check" autocomplete="off" >
+                    <span class="blood-badge" style="font-size: 16px; padding: 8px; display:block;">{{ groupe }}</span>
+                  </label>
+                  {% endfor %}
+                </div>
+              </div>
             </div>
+          </div>
+          {% endif %}
 
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_syphilis" name="test_syphilis">
-              <label class="form-check-label" for="test_syphilis">Test Syphilis - Négatif</label>
+          <div style="font-size: 14px; font-weight: bold; color: var(--crimson); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px;">
+            Sérologie Virale & Bactérienne
+          </div>
+
+          <!-- Tests médicaux -->
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <div class="form-check custom-switch">
+                {{ form.test_vih }}
+                <label class="form-check-label fw-bold" for="{{ form.test_vih.id_for_label }}">{{ form.test_vih.label }}</label>
+              </div>
             </div>
-
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_paludisme" name="test_paludisme">
-              <label class="form-check-label" for="test_paludisme">Test Paludisme - Négatif</label>
+            <div class="col-md-6 mb-3">
+              <div class="form-check custom-switch">
+                {{ form.test_hepatite_b }}
+                <label class="form-check-label fw-bold" for="{{ form.test_hepatite_b.id_for_label }}">{{ form.test_hepatite_b.label }}</label>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="form-check custom-switch">
+                {{ form.test_hepatite_c }}
+                <label class="form-check-label fw-bold" for="{{ form.test_hepatite_c.id_for_label }}">{{ form.test_hepatite_c.label }}</label>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="form-check custom-switch">
+                {{ form.test_syphilis }}
+                <label class="form-check-label fw-bold" for="{{ form.test_syphilis.id_for_label }}">{{ form.test_syphilis.label }}</label>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="form-check custom-switch">
+                {{ form.test_paludisme }}
+                <label class="form-check-label fw-bold" for="{{ form.test_paludisme.id_for_label }}">{{ form.test_paludisme.label }}</label>
+              </div>
             </div>
           </div>
 
-          <div class="col-md-6">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_chagas" name="test_chagas">
-              <label class="form-check-label" for="test_chagas">Test Maladie de Chagas - Négatif</label>
-            </div>
-
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_htlv" name="test_htlv">
-              <label class="form-check-label" for="test_htlv">Test HTLV - Négatif</label>
-            </div>
-
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_cytomegalovirus" name="test_cytomegalovirus">
-              <label class="form-check-label" for="test_cytomegalovirus">Test Cytomégalovirus - Négatif</label>
-            </div>
-
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_ebv" name="test_ebv">
-              <label class="form-check-label" for="test_ebv">Test EBV - Négatif</label>
-            </div>
-
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="test_parvovirus" name="test_parvovirus">
-              <label class="form-check-label" for="test_parvovirus">Test Parvovirus B19 - Négatif</label>
-            </div>
+          <div class="form-group mb-3 mt-3">
+            <label for="{{ form.notes.id_for_label }}" class="fw-bold">Observations du biologiste :</label>
+            {{ form.notes }}
           </div>
-        </div>
+
+          <div class="alert alert-info mt-4" style="background: rgba(26,92,139,0.05); border-left: 4px solid var(--info);">
+            <i class="bi bi-info-circle text-info"></i>
+            <strong>Règle de validation :</strong> Cochez une case indique que le test est <strong>Négatif</strong> (Sain). Si un seul test n'est pas coché ou est positif, la poche sera automatiquement rejetée par le système.
+          </div>
+
+          <div class="mt-4 pt-3 border-top text-end">
+            <a href="{% url 'poche_list' %}" class="btn btn-outline-secondary me-2">Annuler</a>
+            <button type="submit" class="btn btn-danger btn-lg" style="background-color: var(--crimson);">
+              <i class="bi bi-check2-all"></i> Valider l'analyse
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- COLONNE DROITE : LES INFOS -->
+  <div class="col-md-4">
+    <!-- Informations donneur -->
+    <div class="card mb-4">
+      <div class="card-header bg-light fw-bold">
+        <i class="bi bi-person"></i> Informations donneur
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          {% if poche.donneur %}
+          <tr><th class="ps-3">Nom complet</th><td>{{ poche.donneur.nom_complet }}</span></td>
+          <tr><th class="ps-3">Téléphone</th><td>{{ poche.donneur.telephone }}</span></td>
+          <tr><th class="ps-3">Âge</th><td>{{ poche.donneur.age }} ans</span></td>
+          <tr><th class="ps-3">Groupe sanguin</th><td>
+            {% if poche.donneur.groupe_sanguin %}
+              <span class="blood-badge blood-{{ poche.donneur.groupe_sanguin|first|lower }}">{{ poche.donneur.groupe_sanguin }}</span>
+            {% else %}
+              <span class="badge bg-warning">À déterminer</span>
+            {% endif %}
+           </span></td>
+          <tr><th class="ps-3">Type donneur</th><td>{{ poche.donneur.get_type_donneur_display }}</span></td>
+          <tr><th class="ps-3">Nombre de dons</th><td>{{ poche.donneur.nombre_dons }}</span></tr>
+          {% elif poche.candidat_source %}
+          <tr><th class="ps-3">Nom complet</th><td>{{ poche.candidat_source.nom_complet }}</span></td>
+          <tr><th class="ps-3">Téléphone</th><td>{{ poche.candidat_source.telephone }}</span></td>
+          <tr><th class="ps-3">Âge</th><td>{{ poche.candidat_source.age }} ans</span></td>
+          <tr><th class="ps-3">Poids</th><td>{{ poche.candidat_source.poids }} kg</span></td>
+          <tr><th class="ps-3">Groupe sanguin</th><td>
+            {% if poche.groupe_sanguin %}
+              <span class="blood-badge blood-{{ poche.groupe_sanguin|first|lower }}">{{ poche.groupe_sanguin }}</span>
+            {% else %}
+              <span class="badge bg-warning">À déterminer</span>
+            {% endif %}
+           </span></td>
+          <tr><th class="ps-3">Type de visite</th><td>{{ poche.candidat_source.get_type_visite_display }}</span></td>
+          {% else %}
+          <tr><td colspan="2" class="text-muted text-center">Source non disponible</span></tr>
+          {% endif %}
+        </table>
       </div>
     </div>
 
-    <div class="alert alert-info mt-3">
-      <strong>⚠️ Important:</strong> Si un test est positif, la poche sera rejetée et le donneur sera marqué comme "à risque".
+    <!-- Origine du prélèvement -->
+    <div class="card mb-4">
+      <div class="card-header bg-light fw-bold">
+        <i class="bi bi-person"></i> Origine du prélèvement
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          {% if poche.donneur %}
+          <tr><th class="ps-3">Nom</th><td>{{ poche.donneur.nom_complet }}<span class="text-muted"></span></span></td>
+          <tr><th class="ps-3">Code</th><td><span class="text-muted">{{ poche.donneur.code_unique }}</span></span></td>
+          <tr><th class="ps-3">Tél.</th><td>{{ poche.donneur.telephone }}</span></td>
+          <tr><th class="ps-3">Type</th><td>{{ poche.donneur.get_type_donneur_display }}</span></td>
+          {% else %}
+          <tr><td colspan="2" class="text-muted text-center">Source externe non identifiée</span></tr>
+          {% endif %}
+        </table>
+      </div>
     </div>
 
-    <button type="submit" class="btn btn-primary mt-3">Valider l'analyse</button>
-  </form>
+    <!-- Informations poche -->
+    <div class="card">
+      <div class="card-header bg-light fw-bold">
+        <i class="bi bi-droplet"></i> Détails de la Poche
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <tr><th class="ps-3">Code barre</th><td><code style="color: var(--crimson);">{{ poche.code_barre }}</code></span></td>
+          <tr><th class="ps-3">Type</th><td>{{ poche.get_type_produit_display }}</span></td>
+          <tr><th class="ps-3">Prélevée le</th><td>{{ poche.date_prelevement|date:"d/m/Y" }}</span></td>
+          <tr><th class="ps-3">Volume</th><td>{{ poche.volume_ml }} mL</span></td>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
+
+<style>
+  .btn-group .btn-check:checked + .blood-badge {
+    background: var(--crimson);
+    color: white;
+    border: 2px solid var(--crimson);
+  }
+
+  .btn-group .blood-badge {
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-block;
+    width: 100%;
+    text-align: center;
+  }
+
+  .btn-group .blood-badge:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  .form-check-input:checked {
+    background-color: var(--success);
+    border-color: var(--success);
+  }
+</style>
 {% endblock %}

@@ -1,0 +1,91 @@
+{% extends 'blood_bank/base.html' %}
+{% block title %}Recherche médicale{% endblock %}
+{% block page_title %}Recherche médicale{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Recherche médicale</div>
+    <div class="page-subtitle">Trouver un donneur ou une poche analysée</div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <form method="get">
+    <div style="display:flex;gap:12px;align-items:center;">
+      <input type="text" name="q" value="{{ q }}" class="form-control"
+             placeholder="Nom, code donneur, code poche, groupe sanguin..."
+             style="flex:1;" autofocus>
+      <button type="submit" class="btn-blood" style="white-space:nowrap;">
+        <i class="bi bi-search"></i> Rechercher
+      </button>
+    </div>
+  </form>
+</div>
+
+{% if q %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <!-- DONNEURS TROUVÉS -->
+  <div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--crimson);">
+      👤 Donneurs ({{ donneurs|length }})
+    </div>
+    {% for d in donneurs %}
+    <div style="padding:10px;border:1px solid var(--border);border-radius:8px;
+         margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:700;font-size:13px;">{{ d.nom_complet }}</div>
+        <div style="font-size:11px;color:var(--muted);">
+          {{ d.code_unique }} · {{ d.telephone }}
+        </div>
+        <div style="font-size:11px;margin-top:2px;">
+          Groupe: <strong>{{ d.groupe_sanguin|default:"Inconnu" }}</strong> ·
+          {% if d.classification == 'donneur' %}
+            <span style="color:var(--success);">✅ Apte</span>
+          {% else %}
+            <span style="color:var(--crimson);">⚠ Inapte</span>
+          {% endif %}
+        </div>
+      </div>
+      <a href="{% url 'donneur_detail' d.pk %}" class="btn-sm-ghost">Voir</a>
+    </div>
+    {% empty %}
+    <div style="text-align:center;color:var(--muted);padding:20px;font-size:12px;">
+      Aucun donneur trouvé pour "{{ q }}"
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- POCHES TROUVÉES -->
+  <div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--crimson);">
+      🩸 Poches analysées ({{ poches|length }})
+    </div>
+    {% for p in poches %}
+    <div style="padding:10px;border:1px solid var(--border);border-radius:8px;
+         margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:700;font-size:13px;font-family:monospace;">{{ p.code_barre }}</div>
+        <div style="font-size:11px;color:var(--muted);">
+          {{ p.get_type_produit_display }} · {{ p.groupe_sanguin }}
+        </div>
+        <div style="font-size:11px;margin-top:2px;">
+          Donneur: {{ p.donneur.nom_complet }} ·
+          <span style="color:{% if p.statut == 'disponible' %}var(--success){% elif p.statut == 'rejetee' %}var(--crimson){% else %}var(--muted){% endif %};">
+            {{ p.get_statut_display }}
+          </span>
+        </div>
+      </div>
+      <a href="{% url 'poche_detail' p.pk %}" class="btn-sm-ghost">Voir</a>
+    </div>
+    {% empty %}
+    <div style="text-align:center;color:var(--muted);padding:20px;font-size:12px;">
+      Aucune poche trouvée pour "{{ q }}"
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endif %}
+{% endblock %}

@@ -1,391 +1,307 @@
 {% extends 'blood_bank/base.html' %}
-{% block title %}Poche {{ poche.code_barre }} - CNTS{% endblock %}
-{% block page_title %}Fiche poche de sang{% endblock %}
-
-{% block extra_css %}
-<style>
-  .info-row {
-    display:flex;justify-content:space-between;align-items:center;
-    padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;
-  }
-  .info-row:last-child { border-bottom:none; }
-  .info-label { color:var(--muted); }
-  .info-value { font-weight:600; }
-  .test-badge {
-    display:inline-flex;align-items:center;gap:5px;
-    padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;
-  }
-  .test-ok  { background:rgba(26,122,74,0.1); color:var(--success); }
-  .test-ko  { background:rgba(192,21,42,0.1); color:var(--crimson); }
-  .test-nd  { background:rgba(138,138,138,0.1); color:var(--muted); }
-  .trace-step {
-    display:flex;align-items:center;gap:12px;
-    padding:10px 14px;border-radius:8px;font-size:13px;
-    border:1px solid var(--border);margin-bottom:8px;
-  }
-  .trace-dot {
-    width:32px;height:32px;min-width:32px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;
-    font-size:16px;
-  }
-</style>
-{% endblock %}
+{% block title %}Poche {{ poche.code_barre }} — CNTS{% endblock %}
+{% block page_title %}Détail poche{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <div class="page-title">
-      Poche <span class="mono" style="color:var(--crimson);">{{ poche.code_barre }}</span>
-    </div>
+    <div class="page-title">Poche {{ poche.code_barre }}</div>
     <div class="page-subtitle">
-      Groupe {{ poche.groupe_sanguin }} ·
-      {{ poche.get_statut_display }} ·
-      Prélevée le {{ poche.date_prelevement|date:"d/m/Y" }}
+      {{ poche.get_type_produit_display }} ·
+      {{ poche.groupe_sanguin|default:"Groupe à déterminer" }} ·
+      {{ poche.get_statut_display }}
     </div>
   </div>
-  <div style="display:flex;gap:10px;">
-    {% if poche.statut == 'collecte' or poche.statut == 'en_analyse' %}
-    <a href="{% url 'poche_analyser' poche.pk %}" class="btn-blood">
-      <i class="bi bi-clipboard2-pulse"></i> Analyser
+  <div style="display:flex;gap:10px;align-items:center;">
+    {% if peut_fractionner %}
+    <a href="{% url 'fractionner_poche' poche.pk %}"
+       style="background:linear-gradient(135deg,#1A5C8B,#0D3557);
+              color:white;padding:10px 18px;border-radius:10px;
+              font-size:13px;font-weight:700;text-decoration:none;
+              display:flex;align-items:center;gap:8px;">
+      ✂️ Fractionner cette poche
     </a>
     {% endif %}
+    <a href="{% url 'tracabilite_view' poche.pk %}"
+       style="background:rgba(26,92,139,0.1);color:#1A5C8B;
+              padding:10px 18px;border-radius:10px;font-size:13px;
+              font-weight:700;text-decoration:none;
+              display:flex;align-items:center;gap:8px;">
+      📋 Traçabilité complète
+    </a>
     <a href="{% url 'poche_list' %}" class="btn-sm-ghost">
       <i class="bi bi-arrow-left"></i> Retour
     </a>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
 
-  <!-- ── CARTE IDENTITÉ ── -->
-  <div class="card" style="grid-column:1/2;">
-    <div style="text-align:center;margin-bottom:16px;">
-      <span class="blood-badge blood-{{ poche.groupe_sanguin|first|lower }}"
-            style="width:72px;height:72px;font-size:24px;margin:0 auto 12px;display:flex;">
-        {{ poche.groupe_sanguin }}
-      </span>
-      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;
-           letter-spacing:1px;margin-bottom:8px;">
-        {{ poche.code_barre }}
-      </div>
-
-      <!-- Statut principal -->
-      <span class="badge-status
-        {% if poche.statut == 'disponible' %}status-disponible
-        {% elif poche.statut == 'rejetee' %}status-rejetee
-        {% elif poche.statut == 'utilisee' or poche.statut == 'livree' %}status-livree
-        {% elif poche.statut == 'validee' %}status-validee
-        {% else %}status-en_attente{% endif %}"
-        style="font-size:12px;padding:5px 14px;">
-        {{ poche.get_statut_display }}
-      </span>
-    </div>
-
-    <!-- Infos clés -->
-    <div class="info-row">
-      <span class="info-label">Volume</span>
-      <span class="info-value">{{ poche.volume_ml }} ml</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Date prélèvement</span>
-      <span class="info-value">{{ poche.date_prelevement|date:"d/m/Y" }}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Date expiration</span>
-      <span class="info-value" style="{% if poche.est_expiree %}color:var(--crimson);{% elif poche.jours_restants <= 7 %}color:var(--gold);{% endif %}">
-        {{ poche.date_expiration|date:"d/m/Y" }}
-      </span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Jours restants</span>
-      <span class="info-value">
-        {% if poche.est_expiree %}
-          <span style="color:var(--crimson);">Expirée</span>
-        {% else %}
-          <span style="color:{% if poche.jours_restants <= 7 %}var(--gold){% else %}var(--success){% endif %};">
-            J‑{{ poche.jours_restants }}
-          </span>
-        {% endif %}
-      </span>
-    </div>
-    {% if poche.notes %}
-    <div style="margin-top:12px;padding:10px;background:var(--warm-white);
-         border-radius:8px;font-size:12px;color:var(--muted);">
-      <i class="bi bi-sticky"></i> {{ poche.notes }}
-    </div>
-    {% endif %}
-  </div>
-
-  <!-- ── TESTS SÉROLOGIQUES ── -->
+  <!-- INFORMATIONS POCHE -->
   <div class="card">
     <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--crimson);">
-      <i class="bi bi-clipboard2-pulse"></i> Tests sérologiques
+      🩸 Informations de la poche
     </div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;">
 
-    <!-- VIH -->
-    <div style="display:flex;align-items:center;justify-content:space-between;
-         padding:12px 0;border-bottom:1px solid var(--border);">
-      <div>
-        <div style="font-weight:600;font-size:13px;">
-          <i class="bi bi-virus2" style="color:var(--crimson);"></i> VIH (1 & 2)
-        </div>
-        <div style="font-size:11px;color:var(--muted);">Immunodéficience humaine</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;
+           border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">Code barre</span>
+        <span style="font-family:monospace;font-weight:700;color:var(--crimson);">
+          {{ poche.code_barre }}
+        </span>
       </div>
-      {% if poche.test_vih is None %}
-        <span class="test-badge test-nd"><i class="bi bi-hourglass-split"></i> En attente</span>
-      {% elif poche.test_vih %}
-        <span class="test-badge test-ok"><i class="bi bi-shield-check"></i> Négatif ✓</span>
-      {% else %}
-        <span class="test-badge test-ko"><i class="bi bi-shield-x"></i> Positif ✗</span>
-      {% endif %}
-    </div>
 
-    <!-- Hépatite -->
-    <div style="display:flex;align-items:center;justify-content:space-between;
-         padding:12px 0;border-bottom:1px solid var(--border);">
-      <div>
-        <div style="font-weight:600;font-size:13px;">
-          <i class="bi bi-virus" style="color:var(--gold);"></i> Hépatite B & C
-        </div>
-        <div style="font-size:11px;color:var(--muted);">AgHBs / Anti-VHC</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;
+           border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">Type de produit</span>
+        <span style="font-weight:600;">{{ poche.get_type_produit_display }}</span>
       </div>
-      {% if poche.test_hepatite is None %}
-        <span class="test-badge test-nd"><i class="bi bi-hourglass-split"></i> En attente</span>
-      {% elif poche.test_hepatite %}
-        <span class="test-badge test-ok"><i class="bi bi-shield-check"></i> Négatif ✓</span>
-      {% else %}
-        <span class="test-badge test-ko"><i class="bi bi-shield-x"></i> Positif ✗</span>
-      {% endif %}
-    </div>
 
-    <!-- Syphilis -->
-    <div style="display:flex;align-items:center;justify-content:space-between;
-         padding:12px 0;">
-      <div>
-        <div style="font-weight:600;font-size:13px;">
-          <i class="bi bi-bacteria" style="color:var(--info);"></i> Syphilis
-        </div>
-        <div style="font-size:11px;color:var(--muted);">TPHA / VDRL</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;
+           border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">Groupe sanguin</span>
+        {% if poche.groupe_sanguin %}
+        <span style="background:rgba(192,21,42,0.1);color:var(--crimson);
+               padding:3px 10px;border-radius:12px;font-weight:800;">
+          {{ poche.groupe_sanguin }}
+        </span>
+        {% else %}
+        <span style="color:var(--muted);font-style:italic;">À déterminer au labo</span>
+        {% endif %}
       </div>
-      {% if poche.test_syphilis is None %}
-        <span class="test-badge test-nd"><i class="bi bi-hourglass-split"></i> En attente</span>
-      {% elif poche.test_syphilis %}
-        <span class="test-badge test-ok"><i class="bi bi-shield-check"></i> Négatif ✓</span>
-      {% else %}
-        <span class="test-badge test-ko"><i class="bi bi-shield-x"></i> Positif ✗</span>
-      {% endif %}
-    </div>
 
-    <!-- Résultat global -->
-    <div style="margin-top:14px;padding:12px;border-radius:8px;text-align:center;
-         {% if poche.tests_ok %}background:rgba(26,122,74,0.08);
-         {% elif poche.test_vih is None %}background:var(--warm-white);
-         {% else %}background:rgba(192,21,42,0.06);{% endif %}">
-      {% if poche.tests_ok %}
-        <div style="font-size:14px;font-weight:700;color:var(--success);">
-          <i class="bi bi-check-circle-fill"></i> Poche conforme
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px;">Tous les tests sont négatifs</div>
-      {% elif poche.test_vih is None %}
-        <div style="font-size:13px;color:var(--muted);">
-          <i class="bi bi-hourglass-split"></i> Analyses en cours
-        </div>
-      {% else %}
-        <div style="font-size:14px;font-weight:700;color:var(--crimson);">
-          <i class="bi bi-x-circle-fill"></i> Poche non conforme
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px;">Au moins un test positif</div>
-      {% endif %}
-    </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;
+           border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">Volume</span>
+        <span>{{ poche.volume_ml }} mL</span>
+      </div>
 
-    {% if poche.date_analyse %}
-    <div style="margin-top:10px;font-size:11px;color:var(--muted);text-align:center;">
-      Analysée le {{ poche.date_analyse|date:"d/m/Y à H:i" }}
-      {% if poche.analysee_par %}
-        par {{ poche.analysee_par.get_full_name|default:poche.analysee_par.username }}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;
+           border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">Statut</span>
+        <span style="padding:3px 10px;border-radius:12px;font-weight:700;font-size:12px;
+             background:{% if poche.statut == 'disponible' %}rgba(26,122,74,0.1)
+             {% elif poche.statut == 'rejetee' or poche.statut == 'expiree' %}rgba(192,21,42,0.1)
+             {% else %}rgba(201,168,76,0.1){% endif %};
+             color:{% if poche.statut == 'disponible' %}var(--success)
+             {% elif poche.statut == 'rejetee' or poche.statut == 'expiree' %}var(--crimson)
+             {% else %}var(--gold){% endif %};">
+          {{ poche.get_statut_display }}
+        </span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;padding:8px 0;
+           border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">Date prélèvement</span>
+        <span>{{ poche.date_prelevement|date:"d/m/Y" }}</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;padding:8px 0;
+           border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">Date expiration</span>
+        <span style="font-weight:600;
+             color:{% if poche.jours_restants <= 3 %}var(--crimson)
+             {% elif poche.jours_restants <= 7 %}var(--gold)
+             {% else %}var(--success){% endif %};">
+          {{ poche.date_expiration|date:"d/m/Y" }}
+          (J-{{ poche.jours_restants }})
+        </span>
+      </div>
+
+      {% if poche.lieu_collecte %}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;
+           border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">Lieu collecte</span>
+        <span>{{ poche.lieu_collecte }}</span>
+      </div>
       {% endif %}
+
+      {% if poche.notes %}
+      <div style="padding:8px 0;">
+        <span style="color:var(--muted);">Notes</span>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;
+             font-style:italic;">{{ poche.notes }}</div>
+      </div>
+      {% endif %}
+
     </div>
-    {% endif %}
   </div>
 
-  <!-- ── DONNEUR & TRAÇABILITÉ ── -->
+  <!-- DONNEUR + TESTS -->
   <div style="display:flex;flex-direction:column;gap:16px;">
 
     <!-- Donneur -->
     <div class="card">
-      <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--crimson);">
-        <i class="bi bi-person-heart"></i> Donneur
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--crimson);">
+        👤 Donneur
       </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-        <div style="width:40px;height:40px;background:rgba(192,21,42,0.1);border-radius:50%;
-             display:flex;align-items:center;justify-content:center;
-             font-weight:700;color:var(--crimson);font-size:16px;flex-shrink:0;">
-          {{ poche.donneur.nom_complet|first }}
+      {% if poche.donneur %}
+      <div style="font-size:13px;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Nom</span>
+          <a href="{% url 'donneur_detail' poche.donneur.pk %}"
+             style="font-weight:700;color:var(--crimson);">
+            {{ poche.donneur.nom_complet }}
+          </a>
         </div>
-        <div>
-          <div style="font-weight:600;">{{ poche.donneur.nom_complet }}</div>
-          <div style="font-size:11px;color:var(--muted);">{{ poche.donneur.telephone }}</div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Code</span>
+          <span style="font-family:monospace;">{{ poche.donneur.code_unique }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Groupe</span>
+          <span style="font-weight:700;">
+            {{ poche.donneur.groupe_sanguin|default:"Inconnu" }}
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Total dons</span>
+          <span>{{ poche.donneur.nb_dons }}</span>
         </div>
       </div>
-      <div class="info-row">
-        <span class="info-label">Groupe</span>
-        <span class="blood-badge blood-{{ poche.donneur.groupe_sanguin|first|lower }}"
-              style="width:34px;height:34px;font-size:11px;">
-          {{ poche.donneur.groupe_sanguin }}
-        </span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Code donneur</span>
-        <span class="mono" style="font-size:11px;color:var(--crimson);">
-          {{ poche.donneur.code_unique }}
-        </span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Type de don</span>
-        <span class="info-value">{{ poche.donneur.get_type_donneur_display }}</span>
-      </div>
-      <a href="{% url 'donneur_detail' poche.donneur.pk %}"
-         class="btn-outline-blood w-100 mt-3" style="justify-content:center;">
-        <i class="bi bi-person-circle"></i> Voir la fiche donneur
-      </a>
+      {% else %}
+      <div style="color:var(--muted);font-size:13px;">Don externe / Candidat campagne</div>
+      {% endif %}
     </div>
 
-    <!-- Traçabilité -->
+    <!-- Tests sérologiques -->
     <div class="card">
-      <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--crimson);">
-        <i class="bi bi-diagram-2"></i> Traçabilité
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--crimson);">
+        🔬 Résultats des 5 tests sérologiques
       </div>
 
-      <!-- Étape 1 : Collecte -->
-      <div class="trace-step"
-           style="background:rgba(26,122,74,0.04);border-color:rgba(26,122,74,0.2);">
-        <div class="trace-dot" style="background:rgba(26,122,74,0.15);color:var(--success);">
-          ✓
-        </div>
-        <div>
-          <div style="font-weight:600;font-size:12px;">Collectée</div>
-          <div style="font-size:11px;color:var(--muted);">{{ poche.date_prelevement|date:"d/m/Y" }}</div>
-        </div>
+      {% if poche.date_analyse %}
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+        Analysée le {{ poche.date_analyse|date:"d/m/Y à H:i" }}
+        {% if poche.biologiste %}
+        par {{ poche.biologiste.get_full_name|default:poche.biologiste.username }}
+        {% endif %}
       </div>
+      {% endif %}
 
-      <!-- Étape 2 : Analyses -->
-      <div class="trace-step
-        {% if poche.date_analyse %}style='background:rgba(26,122,74,0.04);border-color:rgba(26,122,74,0.2);'
-        {% else %}style='background:var(--warm-white);'{% endif %}">
-        <div class="trace-dot"
-          style="background:{% if poche.date_analyse %}rgba(26,122,74,0.15){% else %}var(--border){% endif %};
-                 color:{% if poche.date_analyse %}var(--success){% else %}var(--muted){% endif %};">
-          {% if poche.date_analyse %}✓{% else %}2{% endif %}
-        </div>
-        <div>
-          <div style="font-weight:600;font-size:12px;">Analysée</div>
-          <div style="font-size:11px;color:var(--muted);">
-            {% if poche.date_analyse %}
-              {{ poche.date_analyse|date:"d/m/Y" }}
-            {% else %}
-              En attente
-            {% endif %}
-          </div>
-        </div>
+      {% for test_name, test_label, test_val in tests_liste %}
+      <div style="display:flex;justify-content:space-between;align-items:center;
+           padding:8px 10px;border-radius:8px;margin-bottom:4px;
+           background:{% if test_val == True %}rgba(26,122,74,0.06)
+           {% elif test_val == False %}rgba(192,21,42,0.06)
+           {% else %}rgba(0,0,0,0.02){% endif %};">
+        <span style="font-size:12px;">{{ test_label }}</span>
+        <span style="font-size:12px;font-weight:700;
+             color:{% if test_val == True %}var(--success)
+             {% elif test_val == False %}var(--crimson)
+             {% else %}var(--muted){% endif %};">
+          {% if test_val == True %}✅ Négatif{% elif test_val == False %}❌ POSITIF{% else %}⏳ En attente{% endif %}
+        </span>
       </div>
-
-      <!-- Étape 3 : Disponible / Rejetée -->
-      <div class="trace-step"
-        style="background:{% if poche.statut == 'disponible' %}rgba(26,122,74,0.04){% elif poche.statut == 'rejetee' %}rgba(192,21,42,0.04){% else %}var(--warm-white){% endif %};
-               border-color:{% if poche.statut == 'disponible' %}rgba(26,122,74,0.2){% elif poche.statut == 'rejetee' %}rgba(192,21,42,0.2){% else %}var(--border){% endif %};">
-        <div class="trace-dot"
-          style="background:{% if poche.statut == 'disponible' %}rgba(26,122,74,0.15){% elif poche.statut == 'rejetee' %}rgba(192,21,42,0.15){% else %}var(--border){% endif %};
-                 color:{% if poche.statut == 'disponible' %}var(--success){% elif poche.statut == 'rejetee' %}var(--crimson){% else %}var(--muted){% endif %};">
-          {% if poche.statut == 'disponible' %}✓{% elif poche.statut == 'rejetee' %}✗{% else %}3{% endif %}
-        </div>
-        <div>
-          <div style="font-weight:600;font-size:12px;">
-            {% if poche.statut == 'disponible' %}Disponible en stock
-            {% elif poche.statut == 'rejetee' %}Rejetée
-            {% else %}En cours de validation
-            {% endif %}
-          </div>
-          <div style="font-size:11px;color:var(--muted);">
-            {% if poche.statut == 'disponible' %}Prête pour attribution
-            {% elif poche.statut == 'rejetee' %}Non conforme — mise au rebut
-            {% else %}—{% endif %}
-          </div>
-        </div>
+      {% empty %}
+      <!-- Affichage direct si pas de liste passée -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:{% if poche.test_vih == True %}rgba(26,122,74,0.06){% elif poche.test_vih == False %}rgba(192,21,42,0.06){% else %}rgba(0,0,0,0.02){% endif %};">
+        <span style="font-size:12px;">VIH 1&2</span>
+        <span style="font-size:12px;font-weight:700;color:{% if poche.test_vih == True %}var(--success){% elif poche.test_vih == False %}var(--crimson){% else %}var(--muted){% endif %};">
+          {% if poche.test_vih == True %}✅ Négatif{% elif poche.test_vih == False %}❌ POSITIF{% else %}⏳ En attente{% endif %}
+        </span>
       </div>
-
-      <!-- Étape 4 : Attribution / Utilisation -->
-      <div class="trace-step"
-        style="background:{% if poche.statut == 'utilisee' or poche.statut == 'attribuee' %}rgba(26,92,139,0.04){% else %}var(--warm-white){% endif %};
-               border-color:{% if poche.statut == 'utilisee' or poche.statut == 'attribuee' %}rgba(26,92,139,0.2){% else %}var(--border){% endif %};">
-        <div class="trace-dot"
-          style="background:{% if poche.statut == 'utilisee' or poche.statut == 'attribuee' %}rgba(26,92,139,0.15){% else %}var(--border){% endif %};
-                 color:{% if poche.statut == 'utilisee' or poche.statut == 'attribuee' %}var(--info){% else %}var(--muted){% endif %};">
-          {% if poche.statut == 'utilisee' or poche.statut == 'attribuee' %}✓{% else %}4{% endif %}
-        </div>
-        <div>
-          <div style="font-weight:600;font-size:12px;">
-            {% if poche.statut == 'utilisee' %}Utilisée / Livrée
-            {% elif poche.statut == 'attribuee' %}Attribuée
-            {% else %}Attribution{% endif %}
-          </div>
-          <div style="font-size:11px;color:var(--muted);">
-            {% if poche.statut == 'utilisee' %}Transfusion effectuée
-            {% elif poche.statut == 'attribuee' %}En cours de livraison
-            {% else %}En attente de demande{% endif %}
-          </div>
-        </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:{% if poche.test_hepatite_b == True %}rgba(26,122,74,0.06){% elif poche.test_hepatite_b == False %}rgba(192,21,42,0.06){% else %}rgba(0,0,0,0.02){% endif %};">
+        <span style="font-size:12px;">Hépatite B (HBsAg)</span>
+        <span style="font-size:12px;font-weight:700;color:{% if poche.test_hepatite_b == True %}var(--success){% elif poche.test_hepatite_b == False %}var(--crimson){% else %}var(--muted){% endif %};">
+          {% if poche.test_hepatite_b == True %}✅ Négatif{% elif poche.test_hepatite_b == False %}❌ POSITIF{% else %}⏳ En attente{% endif %}
+        </span>
       </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:{% if poche.test_hepatite_c == True %}rgba(26,122,74,0.06){% elif poche.test_hepatite_c == False %}rgba(192,21,42,0.06){% else %}rgba(0,0,0,0.02){% endif %};">
+        <span style="font-size:12px;">Hépatite C (Anti-HCV)</span>
+        <span style="font-size:12px;font-weight:700;color:{% if poche.test_hepatite_c == True %}var(--success){% elif poche.test_hepatite_c == False %}var(--crimson){% else %}var(--muted){% endif %};">
+          {% if poche.test_hepatite_c == True %}✅ Négatif{% elif poche.test_hepatite_c == False %}❌ POSITIF{% else %}⏳ En attente{% endif %}
+        </span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:{% if poche.test_syphilis == True %}rgba(26,122,74,0.06){% elif poche.test_syphilis == False %}rgba(192,21,42,0.06){% else %}rgba(0,0,0,0.02){% endif %};">
+        <span style="font-size:12px;">Syphilis (TPHA/VDRL)</span>
+        <span style="font-size:12px;font-weight:700;color:{% if poche.test_syphilis == True %}var(--success){% elif poche.test_syphilis == False %}var(--crimson){% else %}var(--muted){% endif %};">
+          {% if poche.test_syphilis == True %}✅ Négatif{% elif poche.test_syphilis == False %}❌ POSITIF{% else %}⏳ En attente{% endif %}
+        </span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:{% if poche.test_paludisme == True %}rgba(26,122,74,0.06){% elif poche.test_paludisme == False %}rgba(192,21,42,0.06){% else %}rgba(0,0,0,0.02){% endif %};">
+        <span style="font-size:12px;">Paludisme (zones endémiques)</span>
+        <span style="font-size:12px;font-weight:700;color:{% if poche.test_paludisme == True %}var(--success){% elif poche.test_paludisme == False %}var(--crimson){% else %}var(--muted){% endif %};">
+          {% if poche.test_paludisme == True %}✅ Négatif{% elif poche.test_paludisme == False %}❌ POSITIF{% else %}⏳ En attente{% endif %}
+        </span>
+      </div>
+      {% endfor %}
 
+      {% if poche.statut == 'rejetee' and poche.motif_rejet %}
+      <div style="margin-top:10px;padding:10px;background:rgba(192,21,42,0.06);
+           border-radius:8px;border-left:3px solid var(--crimson);">
+        <div style="font-size:11px;font-weight:700;color:var(--crimson);">
+          Cause du rejet enregistrée
+        </div>
+        <div style="font-size:12px;margin-top:3px;">{{ poche.get_motif_rejet_display }}</div>
+      </div>
+      {% endif %}
     </div>
+
+    <!-- Bouton analyser si pas encore analysée -->
+    {% if poche.statut == 'collectee' %}
+    <div class="card" style="background:rgba(201,168,76,0.04);border:1px solid rgba(201,168,76,0.3);">
+      <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:8px;">
+        ⚠️ Poche en attente d'analyse
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+        Cette poche n'a pas encore été analysée au laboratoire.
+      </p>
+      {% if user.role == 'technicien' or user.role == 'medecin' %}
+      <a href="{% url 'poche_analyser' poche.pk %}"
+         style="display:inline-flex;align-items:center;gap:8px;
+                background:var(--crimson);color:white;padding:10px 16px;
+                border-radius:8px;font-size:13px;font-weight:700;
+                text-decoration:none;">
+        🔬 Analyser maintenant
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+
   </div>
 </div>
 
-<!-- ── DEMANDES ASSOCIÉES ── -->
-{% if poche.demandes.all %}
-<div class="card">
-  <div style="font-size:15px;font-weight:700;margin-bottom:14px;">
-    <i class="bi bi-file-medical" style="color:var(--crimson);"></i>
-    Demandes de transfusion associées
+<!-- TRAÇABILITÉ RÉSUMÉE -->
+{% with evenements=poche.tracabilite.all %}
+{% if evenements %}
+<div class="card mt-4">
+  <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--crimson);">
+    📍 Historique de la poche
   </div>
-  <table class="table-clean">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Hôpital</th>
-        <th>Médecin</th>
-        <th>Urgence</th>
-        <th>Date</th>
-        <th>Statut</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for d in poche.demandes.all %}
-      <tr>
-        <td><span class="mono" style="font-size:12px;">#{{ d.pk }}</span></td>
-        <td style="font-weight:600;font-size:13px;">{{ d.hopital }}</td>
-        <td style="font-size:13px;">Dr. {{ d.medecin }}</td>
-        <td><span class="urgence-{{ d.urgence }}">{{ d.get_urgence_display }}</span></td>
-        <td style="font-size:12px;color:var(--muted);">{{ d.date_demande|date:"d/m/Y" }}</td>
-        <td>
-          <span class="badge-status
-            {% if d.statut_demande == 'livree' %}status-livree
-            {% elif d.statut_demande == 'en_attente' %}status-en_attente
-            {% elif d.statut_demande == 'preparee' or d.statut_demande == 'validee' %}status-validee
-            {% else %}status-rejetee{% endif %}">
-            {{ d.get_statut_demande_display }}
-          </span>
-        </td>
-        <td>
-          <a href="{% url 'demande_detail' d.pk %}" class="btn-sm-ghost">
-            <i class="bi bi-eye"></i>
-          </a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div style="position:relative;padding-left:20px;">
+    <div style="position:absolute;left:6px;top:0;bottom:0;
+         width:2px;background:linear-gradient(to bottom,var(--crimson),var(--border));"></div>
+    {% for e in evenements %}
+    <div style="position:relative;margin-bottom:14px;">
+      <div style="position:absolute;left:-18px;width:12px;height:12px;
+           border-radius:50%;background:var(--crimson);
+           border:2px solid white;box-shadow:0 0 0 2px var(--crimson);top:2px;"></div>
+      <div style="font-size:12px;">
+        <span style="font-weight:700;">{{ e.get_etape_display }}</span>
+        <span style="color:var(--muted);margin-left:8px;">
+          {{ e.date_heure|date:"d/m/Y à H:i" }}
+        </span>
+        {% if e.effectue_par %}
+        <span style="color:var(--muted);"> · {{ e.effectue_par.get_full_name|default:e.effectue_par.username }}</span>
+        {% endif %}
+        {% if e.notes %}
+        <div style="color:var(--muted);font-style:italic;margin-top:2px;">
+          {{ e.notes|truncatechars:100 }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <a href="{% url 'tracabilite_view' poche.pk %}"
+     style="font-size:12px;color:var(--crimson);text-decoration:none;
+            display:inline-flex;align-items:center;gap:4px;margin-top:8px;">
+    Voir la traçabilité complète →
+  </a>
 </div>
 {% endif %}
+{% endwith %}
 
 {% endblock %}

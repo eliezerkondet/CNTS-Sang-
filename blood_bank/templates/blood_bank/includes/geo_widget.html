@@ -1,0 +1,140 @@
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div class="card mb-4" id="geoSection">
+  <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--crimson);">
+    📍 Géolocalisation dynamique (optionnel)
+  </div>
+
+  <div style="position:relative;margin-bottom:12px;">
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="geoSearch"
+             class="form-control"
+             placeholder="Tapez votre quartier... Ex: Bacongo, Poto-Poto, Moungali..."
+             autocomplete="off" style="flex:1;">
+      <button type="button" onclick="geoRechercher()"
+              style="padding:10px 14px;background:var(--crimson);
+                     color:white;border:none;border-radius:8px;
+                     font-size:13px;font-weight:700;cursor:pointer;">
+        🔍
+      </button>
+    </div>
+    <div id="geoSuggestions"
+         style="display:none;position:absolute;top:100%;left:0;right:0;
+                background:white;border:1px solid var(--border);
+                border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.1);
+                z-index:1000;max-height:200px;overflow-y:auto;margin-top:4px;">
+    </div>
+  </div>
+
+  <div id="geoMap"
+       style="height:280px;border-radius:10px;
+              border:1px solid var(--border);margin-bottom:12px;">
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div>
+      <label class="form-label" style="font-size:11px;">Latitude</label>
+      <input type="text" name="latitude" id="geoLat" class="form-control"
+             placeholder="-4.2634" style="font-size:12px;">
+    </div>
+    <div>
+      <label class="form-label" style="font-size:11px;">Longitude</label>
+      <input type="text" name="longitude" id="geoLng" class="form-control"
+             placeholder="15.2429" style="font-size:12px;">
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const geoMap = L.map('geoMap').setView([-4.2634, 15.2429], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(geoMap);
+
+  // CNTS marker
+  L.marker([-4.2634, 15.2429], {
+    icon: L.divIcon({
+      className: '',
+      html: '<div style="background:#C0152A;color:white;padding:3px 7px;border-radius:5px;font-size:10px;font-weight:700;">🩸 CNTS</div>',
+      iconAnchor: [18, 8]
+    })
+  }).addTo(geoMap);
+
+  let geoMarker = null;
+
+  geoMap.on('click', function(e) {
+    setGeoPos(e.latlng.lat, e.latlng.lng, 'Position sélectionnée');
+  });
+
+  function setGeoPos(lat, lng, label) {
+    if (geoMarker) geoMap.removeLayer(geoMarker);
+    geoMarker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="background:#1A7A4A;color:white;padding:3px 7px;border-radius:5px;font-size:10px;font-weight:700;">📍 ' + label + '</div>',
+        iconAnchor: [18, 8]
+      })
+    }).addTo(geoMap);
+    document.getElementById('geoLat').value = lat.toFixed(6);
+    document.getElementById('geoLng').value = lng.toFixed(6);
+    geoMap.setView([lat, lng], 15);
+  }
+
+  window.geoRechercher = async function() {
+    const q = document.getElementById('geoSearch').value.trim();
+    if (!q) return;
+    const fullQ = q.toLowerCase().includes('brazzaville') ? q : q + ' Brazzaville Congo';
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullQ)}&limit=6&countrycodes=cg`,
+        { headers: { 'Accept-Language': 'fr' } }
+      );
+      const data = await res.json();
+      const div = document.getElementById('geoSuggestions');
+      if (!data.length) {
+        div.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);">Aucun résultat — essayez un nom différent</div>';
+        div.style.display = 'block';
+        return;
+      }
+      div.innerHTML = data.map(r =>
+        `<div onclick="geoSelect(${r.lat}, ${r.lon}, '${r.display_name.replace(/'/g, "\\'")}')"
+              style="padding:9px 12px;cursor:pointer;font-size:12px;
+                     border-bottom:1px solid var(--border);"
+              onmouseover="this.style.background='rgba(192,21,42,0.05)'"
+              onmouseout="this.style.background='white'">
+           <div style="font-weight:600;">📍 ${r.display_name.split(',')[0]}</div>
+           <div style="color:var(--muted);font-size:10px;">${r.display_name}</div>
+         </div>`
+      ).join('');
+      div.style.display = 'block';
+    } catch(e) {}
+  };
+
+  let geoTimer = null;
+  document.getElementById('geoSearch').addEventListener('input', function() {
+    clearTimeout(geoTimer);
+    if (this.value.length >= 3) {
+      geoTimer = setTimeout(() => window.geoRechercher(), 400);
+    } else {
+      document.getElementById('geoSuggestions').style.display = 'none';
+    }
+  });
+
+  window.geoSelect = function(lat, lng, name) {
+    document.getElementById('geoSuggestions').style.display = 'none';
+    document.getElementById('geoSearch').value = name.split(',')[0];
+    setGeoPos(parseFloat(lat), parseFloat(lng), name.split(',')[0]);
+  };
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#geoSearch') && !e.target.closest('#geoSuggestions')) {
+      document.getElementById('geoSuggestions').style.display = 'none';
+    }
+  });
+})();
+</script>

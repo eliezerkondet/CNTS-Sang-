@@ -31,6 +31,20 @@
             </div>
           </div>
 
+          <!-- NOUVEAU : Date de naissance et Poids -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Date de naissance</label>
+              <input type="date" name="date_naissance" class="form-control">
+              <small class="text-muted">Pour vérifier l'âge (18-65 ans)</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Poids (kg)</label>
+              <input type="number" step="0.1" name="poids" class="form-control" placeholder="ex: 70.5">
+              <small class="text-muted">Minimum 50 kg requis</small>
+            </div>
+          </div>
+
           <div class="card mt-4">
             <div class="card-header bg-light">
               <i class="bi bi-hospital"></i> Informations du patient
@@ -52,9 +66,14 @@
                   <label class="form-label">Groupe sanguin</label>
                   <select name="groupe_patient" class="form-select">
                     <option value="">Non déterminé</option>
-                    {% for g in groupes %}
-                    <option value="{{ g.0 }}">{{ g.0 }}</option>
-                    {% endfor %}
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
                   </select>
                 </div>
                 <div class="col-md-4">
@@ -63,12 +82,15 @@
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Hôpital</label>
-                  <select name="hopital_patient" class="form-select">
+                  <select name="hopital_patient" id="hopital_select" class="form-select">
                     <option value="">Sélectionner un hôpital</option>
                     {% for hopital in hopitaux %}
                     <option value="{{ hopital.nom }}">{{ hopital.nom }}</option>
                     {% endfor %}
+                    <option value="autre">📍 Autre (précisez)</option>
                   </select>
+                  <input type="text" name="hopital_patient_autre" id="hopital_autre" class="form-control mt-2" 
+                         style="display:none;" placeholder="Nom de l'hôpital...">
                 </div>
               </div>
 
@@ -138,4 +160,19 @@
     </div>
   </div>
 </div>
+
+<script>
+    const select = document.getElementById('hopital_select');
+    const input = document.getElementById('hopital_autre');
+    if (select) {
+        select.addEventListener('change', function() {
+            if (this.value === 'autre') {
+                input.style.display = 'block';
+                input.required = false;
+            } else {
+                input.style.display = 'none';
+            }
+        });
+    }
+</script>
 {% endblock %}

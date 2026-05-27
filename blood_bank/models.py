@@ -62,7 +62,7 @@ class Donneur(models.Model):
     nom_complet = models.CharField(max_length=200)
     sexe = models.CharField(max_length=1, choices=SEXE_CHOICES)
     date_naissance = models.DateField()
-    poids = models.IntegerField(help_text="Poids en kg")
+    poids = models.DecimalField(max_digits=5, decimal_places=1, help_text="Poids en kg")
     telephone = models.CharField(max_length=20)
     groupe_sanguin = models.CharField(
         max_length=3,
@@ -103,6 +103,8 @@ class Donneur(models.Model):
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     quartier = models.CharField(max_length=100, blank=True)
+    date_suspension_paludisme = models.DateField(null=True, blank=True, verbose_name="Date de suspension pour paludisme")
+    date_retour_autorise = models.DateField(null=True, blank=True, verbose_name="Date à partir de laquelle il peut redonner")
 
     class Meta:
         verbose_name = "Donneur"
@@ -140,7 +142,7 @@ class Donneur(models.Model):
 
 class PocheSang(models.Model):
     STATUT_CHOICES = [
-        ('collecte', 'Collectée'),
+        ('collectee', 'Collectée'),
         ('en_analyse', 'En analyse'),
         ('validee', 'Validée'),
         ('disponible', 'Disponible'),
@@ -176,7 +178,7 @@ class PocheSang(models.Model):
     date_prelevement = models.DateField()
     date_expiration = models.DateField()
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='collecte')
-
+    lieu_collecte = models.CharField(max_length=200, blank=True, default='CNTS Brazzaville', verbose_name="Lieu de prélèvement")
     # Tests médicaux complets (selon l'image fournie)
     test_vih = models.BooleanField(null=True, blank=True, verbose_name="Test VIH négatif")
     test_hepatite_b = models.BooleanField(null=True, blank=True, verbose_name="Test Hépatite B négatif")
@@ -189,7 +191,7 @@ class PocheSang(models.Model):
     test_ebv = models.BooleanField(null=True, blank=True, verbose_name="Test Virus Epstein-Barr négatif")
     test_parvovirus = models.BooleanField(null=True, blank=True, verbose_name="Test Parvovirus B19 négatif")
 
-    donneur = models.ForeignKey(Donneur, on_delete=models.PROTECT)
+    donneur = models.ForeignKey(Donneur, on_delete=models.SET_NULL, null=True, blank=True)
     volume_ml = models.IntegerField(default=450)
     groupe_sanguin = models.CharField(max_length=3, blank=True)
     notes = models.TextField(blank=True)
@@ -204,6 +206,12 @@ class PocheSang(models.Model):
         Utilisateur, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='poches_analysees'
     )
+    candidat_source = models.ForeignKey(
+        'CandidatDon',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='poches_prelevees'
+) 
 
     class Meta:
         verbose_name = "Poche de sang"
@@ -224,7 +232,7 @@ class PocheSang(models.Model):
             }
             prefix = prefixes.get(self.type_produit, 'PS')
             self.code_barre = f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
-        if not self.groupe_sanguin:
+        if not self.groupe_sanguin and self.donneur:
             self.groupe_sanguin = self.donneur.groupe_sanguin
         if not self.date_expiration:
             from datetime import timedelta
@@ -341,6 +349,7 @@ class DemandeTransfusion(models.Model):
         ('culot_erythrocytaire', 'Culot érythrocytaire'),
         ('culot_plaquettaire', 'Culot plaquettaire'),
         ('cryoprecipite', 'Cryoprécipité'),
+        ('plasma_frais_congele', 'Plasma frais congelé'), 
     ]
 
     hopital = models.CharField(max_length=200)
@@ -512,6 +521,72 @@ class AlerteStock(models.Model):
 
     def __str__(self):
         return f"Alerte {self.groupe_sanguin} - {self.type_produit} - {self.get_niveau_display()}"
+    @classmethod
+    def verifier_expirations(cls):
+        """Vérifie si des poches vont bientôt expirer (Moins de 7 jours)"""
+        from datetime import timedelta
+        alertes_creees = []
+        
+        date_limite = timezone.now().date() + timedelta(days=7)
+        poches_en_danger = PocheSang.objects.filter(statut='disponible', date_expiration__lte=date_limite)
+        
+        for poche in poches_en_danger:
+            alerte, created = cls.objects.get_or_create(
+                groupe_sanguin=poche.groupe_sanguin,
+                message__icontains=poche.code_barre, 
+                resolue=False,
+                defaults={
+                    'niveau': 'warning',
+                    'message': f"Péremption imminente: Poche {poche.code_barre} expire le {poche.date_expiration}.",
+                    'stock_actuel': 1,
+                    'seuil': 0
+                }
+            )
+            if created: alertes_creees.append(alerte)
+            
+        return alertes_creees
+
+    # ⬇️ ET ICI AUSSI ! ⬇️
+    @classmethod
+    def predire_rupture_j3(cls):
+        """Calcule la consommation des 7 derniers jours pour prédire une rupture à J+3."""
+        from datetime import timedelta
+        alertes_creees = []
+        date_il_y_a_7_jours = timezone.now().date() - timedelta(days=7)
+        
+        for groupe in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']:
+            stock_actuel = PocheSang.objects.filter(groupe_sanguin=groupe, statut='disponible').count()
+            
+            consommation_7j = PocheSang.objects.filter(
+                groupe_sanguin=groupe, 
+                statut='utilisee',
+                tracabilite__date_heure__date__gte=date_il_y_a_7_jours
+            ).distinct().count()
+            
+            conso_par_jour = consommation_7j / 7.0
+            prevision_j3 = stock_actuel - (conso_par_jour * 3)
+            
+            try:
+                config = Configuration.get_config()
+                seuil = config.seuil_alerte_stock
+            except Exception:
+                seuil = 5
+                
+            if prevision_j3 <= seuil:
+                alerte, created = cls.objects.get_or_create(
+                    groupe_sanguin=groupe,
+                    resolue=False,
+                    message__startswith="[PRÉDICTION IA]",
+                    defaults={
+                        'niveau': 'critical' if prevision_j3 <= 0 else 'warning',
+                        'message': f"[PRÉDICTION IA] Risque rupture en {groupe}. Stock actuel: {stock_actuel}. Conso estimée/jour: {round(conso_par_jour, 1)}",
+                        'stock_actuel': stock_actuel,
+                        'seuil': seuil
+                    }
+                )
+                if created: alertes_creees.append(alerte)
+                
+        return alertes_creees
 
 
 class LogSMS(models.Model):
@@ -530,6 +605,7 @@ class LogSMS(models.Model):
 
     def __str__(self):
         return f"SMS → {self.destinataire} ({self.statut})"
+    
 
 
 # ============================================================
@@ -537,7 +613,6 @@ class LogSMS(models.Model):
 # ============================================================
 
 # models.py
-
 class VisiteurCNTS(models.Model):
     """
     Donneur familial/remplaçant : personne qui vient donner son sang
@@ -547,6 +622,7 @@ class VisiteurCNTS(models.Model):
         ('don_familial', 'Don familial (pour un patient)'),
         ('retrait_resultats', 'Retrait de résultats'),
         ('renseignement', 'Renseignement'),
+
     ]
 
     STATUT_DON = [
@@ -562,6 +638,8 @@ class VisiteurCNTS(models.Model):
     nom_complet = models.CharField(max_length=200, verbose_name="Nom et prénom")
     telephone = models.CharField(max_length=20)
     type_visite = models.CharField(max_length=30, choices=TYPE_VISITE, default='don_familial')
+    date_naissance = models.DateField(null=True, blank=True, verbose_name="Date de naissance")
+    poids = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True, verbose_name="Poids (kg)")
 
     # Informations sur le patient
     nom_patient = models.CharField(max_length=200, verbose_name="Nom du patient concerné")
@@ -618,6 +696,17 @@ class VisiteurCNTS(models.Model):
         related_name='visiteurs_enregistres'
     )
     sms_resultats_envoye = models.BooleanField(default=False)
+    @property
+    def age(self):
+        if not self.date_naissance:
+          return None
+        from django.utils import timezone
+        today = timezone.now().date()
+        return today.year - self.date_naissance.year - ((today.month, today.day) < (self.date_naissance.month, self.date_naissance.day))
+
+
+
+
 
     class Meta:
         verbose_name = "Donneur familial"
@@ -906,11 +995,11 @@ class TracabiliteEvenement(models.Model):
         ('rejet', 'Rejet/Destruction'),
     ]
 
-    poche = models.ForeignKey(PocheSang, on_delete=models.CASCADE, related_name='tracabilite')
+    poche = models.ForeignKey('PocheSang', on_delete=models.CASCADE, related_name='tracabilite')
     etape = models.CharField(max_length=30, choices=ETAPE_CHOICES)
     date_heure = models.DateTimeField(auto_now_add=True)
-    effectue_par = models.ForeignKey(Utilisateur, on_delete=models.SET_NULL, null=True)
-    hopital = models.ForeignKey(Hopital, on_delete=models.SET_NULL, null=True, blank=True)
+    effectue_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+    hopital = models.ForeignKey('Hopital', on_delete=models.SET_NULL, null=True, blank=True)
     notes = models.TextField(blank=True)
     temperature = models.FloatField(null=True, blank=True, help_text="Température en °C")
     position = models.CharField(max_length=200, blank=True, help_text="Position/GPS")
@@ -925,51 +1014,142 @@ class TracabiliteEvenement(models.Model):
     def __str__(self):
         return f"{self.poche.code_barre} - {self.get_etape_display()} - {self.date_heure.strftime('%d/%m/%Y %H:%M')}"
 
-
 # ============================================================
 # CANDIDAT DON — Accueil et classification
 # ============================================================
 
 class CandidatDon(models.Model):
     TYPE_VISITE = [
-        ('nouveau_donneur', 'Nouveau donneur'),
-        ('donneur_existant', 'Donneur existant'),
-        ('rendre_poche', 'Rendre une poche'),
-        ('famille_patient', 'Famille de patient'),
-        ('information', 'Demande d\'information'),
+        ('campagne', '🩸 Don campagne (don unique)'),
+        ('deviendra_donneur', '⭐ Veut devenir donneur régulier'),
+        ('information', '📋 Demande d\'information'),
     ]
 
-    nom_complet = models.CharField(max_length=200)
-    telephone = models.CharField(max_length=20)
-    type_visite = models.CharField(max_length=30, choices=TYPE_VISITE)
+    # Informations personnelles
+    nom_complet = models.CharField(max_length=200, verbose_name="Nom complet")
+    telephone = models.CharField(max_length=20, verbose_name="Téléphone")
+    date_naissance = models.DateField(verbose_name="Date de naissance")
+    poids = models.DecimalField(max_digits=5, decimal_places=1, verbose_name="Poids (kg)", help_text="Minimum 50 kg")
+    
+    # Type de visite
+    type_visite = models.CharField(max_length=30, choices=TYPE_VISITE, default='campagne')
     date_visite = models.DateTimeField(auto_now_add=True)
-    accueilli_par = models.ForeignKey(Utilisateur, on_delete=models.SET_NULL, null=True)
+    accueilli_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
 
     # Critères d'éligibilité
-    age_ok = models.BooleanField(default=False, verbose_name="Âge entre 18 et 65 ans")
-    poids_ok = models.BooleanField(default=False, verbose_name="Poids ≥ 50 kg")
+    age_ok = models.BooleanField(default=False, verbose_name="Âge vérifié (18-65 ans)")
     bonne_sante = models.BooleanField(default=False, verbose_name="Bonne santé générale")
     pas_don_recent = models.BooleanField(default=False, verbose_name="Pas de don dans les 56 derniers jours")
 
+    # Éligibilité calculée automatiquement
     eligible_don = models.BooleanField(default=False)
+    
+    # Notes
     notes = models.TextField(blank=True)
-    donneur_associe = models.ForeignKey(Donneur, on_delete=models.SET_NULL, null=True, blank=True)
-
+    
+    # Liens
+    donneur_associe = models.ForeignKey('Donneur', on_delete=models.SET_NULL, null=True, blank=True, related_name='candidat_source')
+   
+    # Suivi des résultats
+    resultats_recuperes = models.BooleanField(default=False, verbose_name="Résultats récupérés")
+    date_recuperation = models.DateTimeField(null=True, blank=True)
+    
+    # ⭐ CODE D'ACCÈS (UN SEUL)
+    code_acces = models.CharField(max_length=10, unique=True, blank=True)
+    # Examens médicaux
+    tension = models.CharField(max_length=20, blank=True, verbose_name="Tension (ex: 12/8)")
+    poids_ok = models.BooleanField(default=False, verbose_name="Poids ≥ 50 kg")
+    tension_ok = models.BooleanField(default=False, verbose_name="Tension normale")
+    hemoglobine_ok = models.BooleanField(default=False, verbose_name="Hémoglobine suffisante")
+    pas_de_maladie = models.BooleanField(default=False, verbose_name="Pas de maladie chronique/IST")
+    pas_de_medicament = models.BooleanField(default=False, verbose_name="Pas de traitement incompatible")
+    pas_tuberculose = models.BooleanField(default=False, verbose_name="Pas d'antécédent tuberculose")
+    pas_fievre = models.BooleanField(default=False, verbose_name="Apyrétique (pas de fièvre)")
+    pas_antecedents_risque = models.BooleanField(default=False, verbose_name="Pas de comportement à risque")
+    motif_inaptitude = models.TextField(blank=True, verbose_name="Motif d'inaptitude")
+    examen_medical_valide = models.BooleanField(default=False, verbose_name="Examen médical validé")
+    date_examen = models.DateTimeField(null=True, blank=True)
     class Meta:
         verbose_name = "Candidat au don"
         verbose_name_plural = "Candidats au don"
         ordering = ['-date_visite']
 
     def __str__(self):
-        return f"{self.nom_complet} - {self.get_type_visite_display()} - {'Éligible' if self.eligible_don else 'Non éligible'}"
+        return f"{self.nom_complet} - {self.get_type_visite_display()}"
+
+    @property
+    def age(self):
+        if not self.date_naissance:
+            return 0
+        from django.utils import timezone
+        today = timezone.now().date()
+        return today.year - self.date_naissance.year - ((today.month, today.day) < (self.date_naissance.month, self.date_naissance.day))
 
     def evaluer_eligibilite(self):
-        """Évalue si le candidat est éligible au don"""
+        age_est_bon = self.age >= 18 and self.age <= 65
+        poids_est_bon = self.poids >= 50
         self.eligible_don = all([
-            self.age_ok,
-            self.poids_ok,
+            age_est_bon,
+            poids_est_bon,
             self.bonne_sante,
             self.pas_don_recent,
-            self.type_visite in ['nouveau_donneur', 'donneur_existant']
+            self.type_visite in ['campagne', 'deviendra_donneur']
         ])
         return self.eligible_don
+
+    def save(self, *args, **kwargs):
+        if not self.code_acces:
+            import random
+            import string
+            self.code_acces = ''.join(random.choices(string.digits, k=6))
+        super().save(*args, **kwargs)
+class Livraison(models.Model):
+    STATUT_CHOICES = [
+        ('preparee', 'Préparée'),
+        ('en_transit', 'En transit'),
+        ('livree', 'Livrée'),
+        ('annulee', 'Annulée'),
+    ]
+
+    reference = models.CharField(max_length=50, unique=True, blank=True)
+    date_preparation = models.DateTimeField(auto_now_add=True)
+    date_livraison_effective = models.DateTimeField(null=True, blank=True)
+    hopital_destinataire = models.ForeignKey('Hopital', on_delete=models.PROTECT, related_name='livraisons')
+    poches = models.ManyToManyField('PocheSang', related_name='livraisons')
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='preparee')
+    preparee_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True, related_name='livraisons_preparees')
+    livree_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True, blank=True, related_name='livraisons_effectuees')
+    temperature_transport = models.FloatField(null=True, blank=True, help_text="Température de transport en °C")
+    notes = models.TextField(blank=True)
+    signature_reception = models.TextField(blank=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Livraison"
+        verbose_name_plural = "Livraisons"
+        ordering = ['-date_preparation']
+
+    def __str__(self):
+        return f"Livraison {self.reference} → {self.hopital_destinataire.nom}"
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            from datetime import datetime
+            date_str = datetime.now().strftime("%Y%m%d")
+            dernier = Livraison.objects.filter(reference__startswith=f"LIV-{date_str}").count()
+            self.reference = f"LIV-{date_str}-{str(dernier+1).zfill(4)}"
+        super().save(*args, **kwargs)  
+class PreEnregistrementDonneur(models.Model):
+    nom_complet = models.CharField(max_length=200, verbose_name="Nom complet")
+    telephone = models.CharField(max_length=20, verbose_name="Téléphone")
+    email = models.EmailField(blank=True, verbose_name="Email")
+    date_demande = models.DateTimeField(auto_now_add=True, verbose_name="Date de la demande")
+    traite = models.BooleanField(default=False, verbose_name="Traité")
+
+    class Meta:
+        verbose_name = "Pré‑enregistrement donneur"
+        verbose_name_plural = "Pré‑enregistrements donneurs"
+        ordering = ['-date_demande']
+
+    def __str__(self):
+        return f"{self.nom_complet} ({self.telephone})"
