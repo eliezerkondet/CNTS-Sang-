@@ -1,0 +1,1 @@
+web: gunicorn banque_sang.wsgi

@@ -1,11 +1,14 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Chemins de base du projet
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-cle-secrete-pour-la-banque-de-sang-brazzaville'
-DEBUG = True
+SECRET_KEY = os.getenv('SECRET_KEY')
+DEBUG = os.getenv('DEBUG') == 'True'
 ALLOWED_HOSTS = ['*']
 
 # Applications installées
@@ -25,6 +28,7 @@ AUTH_USER_MODEL = 'blood_bank.Utilisateur'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -77,7 +81,7 @@ USE_TZ = True
 
 # Fichiers statiques (CSS, JS, Images de design)
 STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Fichiers Médias (Photos de profil et QR CODES !)
 MEDIA_URL = '/media/'
@@ -86,8 +90,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Configuration Africa's Talking (Mode simulation pour l'instant)
-AFRICASTALKING_USERNAME = 'sandbox'
-AFRICASTALKING_API_KEY = 'atsk_35fa117ea7fdaf95c0fead8c71817bb9c126b3586b155367025d306ccfc23f8f295d80f6'
+AFRICASTALKING_USERNAME = os.getenv('AFRICASTALKING_USERNAME')
+AFRICASTALKING_API_KEY = os.getenv('AFRICASTALKING_API_KEY')
+
 # ==========================================
 # CONFIGURATION EMAIL (SMTP GMAIL) - VRAIS EMAILS
 # ==========================================
@@ -97,11 +102,11 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
 # Ton adresse email dédiée au projet
-EMAIL_HOST_USER = 'cntscongobrazzaville@gmail.com' 
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 
 # LE CODE SECRET À 16 LETTRES GÉNÉRÉ PAR GOOGLE (Sans espaces)
 # Remplace 'xxxx xxxx xxxx xxxx' par ton vrai code !
-EMAIL_HOST_PASSWORD = ' lhnoqonlczkfxfug '
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 # Le nom officiel qui s'affichera chez le destinataire
 DEFAULT_FROM_EMAIL = 'CNTS Brazzaville <cntscongobrazzaville@gmail.com>'
