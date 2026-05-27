@@ -6,28 +6,70 @@ from .models import (
     VisiteurCNTS, ExamenMedical, CarteDonneur, Hopital,
     TracabiliteEvenement, CandidatDon
 )
+from django.utils import timezone
+
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+from .models import Utilisateur
 
 
 @admin.register(Utilisateur)
 class UtilisateurAdmin(UserAdmin):
-    list_display = ['username', 'get_full_name', 'role', 'centre_ref', 'telephone', 'is_active']
-    list_filter = ['role', 'is_active', 'is_staff']
-    search_fields = ['username', 'first_name', 'last_name', 'email', 'telephone']
+    list_display = (
+        'username',
+        'get_full_name',
+        'role',
+        'centre_ref',
+        'telephone',
+        'is_active'
+    )
 
-    fieldsets = UserAdmin.fieldsets + (
-        ('Informations CNTS', {
-            'fields': ('role', 'centre_ref', 'telephone', 'avatar'),
-            'classes': ('wide',)
+    list_filter = ('role', 'is_active', 'is_staff')
+
+    search_fields = (
+        'username',
+        'first_name',
+        'last_name',
+        'email',
+        'telephone'
+    )
+
+    # ❌ NE PAS utiliser UserAdmin.fieldsets + ...
+    # ✅ on reconstruit proprement
+
+    fieldsets = (
+        (None, {
+            'fields': ('username', 'password')
+        }),
+        ('Informations personnelles', {
+            'fields': ('first_name', 'last_name', 'email')
+        }),
+        ('CNTS - Informations supplémentaires', {
+            'fields': ('role', 'centre_ref', 'telephone', 'avatar')
+        }),
+        ('Permissions', {
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')
+        }),
+        ('Dates importantes', {
+            'fields': ('last_login', 'date_joined')
         }),
     )
 
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'password1', 'password2', 'role', 'centre_ref', 'telephone'),
+            'fields': (
+                'username',
+                'password1',
+                'password2',
+                'role',
+                'centre_ref',
+                'telephone',
+                'is_staff',
+                'is_active'
+            ),
         }),
     )
-
 
 @admin.register(Donneur)
 class DonneurAdmin(admin.ModelAdmin):
