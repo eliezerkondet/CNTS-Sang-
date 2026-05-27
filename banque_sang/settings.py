@@ -58,12 +58,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'banque_sang.wsgi.application'
 
 # Base de données (SQLite pour l'instant)
+import dj_database_url
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600
+    )
 }
+
 
 # Mots de passe
 AUTH_PASSWORD_VALIDATORS = [
@@ -80,9 +83,14 @@ USE_I18N = True
 USE_TZ = True
 
 # Fichiers statiques (CSS, JS, Images de design)
-STATIC_URL = 'static/'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATIC_URL = '/static/'
 
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # Fichiers Médias (Photos de profil et QR CODES !)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
