@@ -1,10 +1,30 @@
+from datetime import date
+import re
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
+from django.core.exceptions import ValidationError
 from .models import (
     Utilisateur, Donneur, PocheSang, DemandeTransfusion,
     Configuration, MessageIEC, ExamenMedical, Hopital, CandidatDon
 )
 
+# ============================================================
+# FONCTION COMMUNE : VALIDATION TÉLÉPHONE CONGO
+# ============================================================
+def valider_numero_congo(numero):
+    if not numero:
+        return numero
+    # Enlève les espaces et tirets
+    num = str(numero).replace(' ', '').replace('-', '')
+    # Vérifie si ça commence par +242 ou 0, suivi de 4, 5 ou 6, et de 7 chiffres
+    if not re.match(r'^(?:\+242|0)[456][0-9]{7}$', num):
+        raise ValidationError("Numéro invalide. Format exigé : +24206XXXXXXX ou 06XXXXXXX (Congo uniquement).")
+    return num
+
+
+# ============================================================
+# FORMULAIRES
+# ============================================================
 
 class LoginForm(AuthenticationForm):
     username = forms.CharField(
@@ -52,34 +72,37 @@ class DonneurForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Groupe sanguin optionnel — sera déterminé après analyses labo
         self.fields['groupe_sanguin'].required = False
         self.fields['groupe_sanguin'].empty_label = "Inconnu (à déterminer au labo)"
-        self.fields['groupe_sanguin'].help_text = (
-            "Laissez vide si le groupe n'est pas encore connu. "
-            "Il sera mis à jour après les analyses biologiques."
-        )
-        # Email optionnel
+        self.fields['groupe_sanguin'].help_text = "Laissez vide si inconnu."
         self.fields['email'].required = False
-        # Adresse optionnelle
         self.fields['adresse'].required = False
-        # Classification optionnelle
         self.fields['classification'].required = False
-        self.fields['classification'].help_text = "Classification du donneur (candidat, donneur, non-donneur)"
-        # Motif risque optionnel
         self.fields['motif_risque'].required = False
-        # Masquer certains champs pour certains utilisateurs
         if not self.instance.pk:
-            # Pour un nouveau donneur, par défaut classification = candidat
             self.initial['classification'] = 'candidat'
+
+    # --- SÉCURITÉ : VÉRIFICATION DE L'ÂGE ---
+    def clean_date_naissance(self):
+        date_naiss = self.cleaned_data.get('date_naissance')
+        if date_naiss:
+            aujourd_hui = date.today()
+            age = aujourd_hui.year - date_naiss.year - ((aujourd_hui.month, aujourd_hui.day) < (date_naiss.month, date_naiss.day))
+            if age < 18:
+                raise ValidationError(f"Le donneur doit avoir au moins 18 ans. (Âge actuel : {age} ans).")
+            if age > 65:
+                raise ValidationError(f"Le donneur ne peut pas avoir plus de 65 ans. (Âge actuel : {age} ans).")
+        return date_naiss
+
+    # --- SÉCURITÉ : VÉRIFICATION DU TÉLÉPHONE CONGO ---
+    def clean_telephone(self):
+        return valider_numero_congo(self.cleaned_data.get('telephone'))
 
 
 class PocheSangForm(forms.ModelForm):
     class Meta:
         model = PocheSang
-        # ON ENLÈVE 'type_produit' DE LA LISTE DES CHAMPS AFFICHÉS !
         fields = ['code_barre', 'donneur', 'volume_ml', 'lieu_collecte', 'notes']
-        
         widgets = {
             'date_prelevement': forms.DateInput(attrs={'type': 'date'}),
             'date_expiration': forms.DateInput(attrs={'type': 'date'}),
@@ -88,11 +111,9 @@ class PocheSangForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # On peut aussi ajouter des classes Bootstrap pour que ça soit joli
         for field in self.fields:
             self.fields[field].widget.attrs.update({'class': 'form-control'})
 
-# forms.py - Modifiez votre formulaire
 
 class AnalysePocheForm(forms.ModelForm):
     class Meta:
@@ -149,8 +170,7 @@ class DemandeTransfusionForm(forms.ModelForm):
             'telephone_contact': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+242 XX XXX XXXX'}),
             'donneur_parrain': forms.Select(attrs={'class': 'form-select'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            'prix_personnalise': forms.NumberInput(
-                attrs={'class': 'form-control', 'min': 0, 'placeholder': 'Prix personnalisé (FCFA)'}),
+            'prix_personnalise': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'placeholder': 'Prix personnalisé (FCFA)'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -159,7 +179,6 @@ class DemandeTransfusionForm(forms.ModelForm):
         self.fields['donneur_parrain'].empty_label = "--- Aucun (prix standard) ---"
         self.fields['donneur_parrain'].required = False
         self.fields['prix_personnalise'].required = False
-        self.fields['prix_personnalise'].help_text = "Prix personnalisé fixé par le Directeur (optionnel)"
 
 
 class MessageIECForm(forms.ModelForm):
@@ -167,12 +186,8 @@ class MessageIECForm(forms.ModelForm):
         model = MessageIEC
         fields = ['titre', 'contenu', 'cible', 'type_message']
         widgets = {
-            'titre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Titre du message'}),
-            'contenu': forms.Textarea(attrs={
-                'class': 'form-control', 'rows': 4,
-                'placeholder': 'Contenu du SMS (max 160 caractères recommandé)',
-                'maxlength': 480,
-            }),
+            'titre': forms.TextInput(attrs={'class': 'form-control'}),
+            'contenu': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'maxlength': 480}),
             'cible': forms.Select(attrs={'class': 'form-select'}),
             'type_message': forms.Select(attrs={'class': 'form-select'}),
         }
@@ -181,39 +196,13 @@ class MessageIECForm(forms.ModelForm):
 class ConfigurationForm(forms.ModelForm):
     class Meta:
         model = Configuration
-        fields = [
-            'prix_standard', 'prix_reduit', 'seuil_credits',
-            'seuil_alerte_stock', 'message_prix_solidaire'
-        ]
+        fields = ['prix_standard', 'prix_reduit', 'seuil_credits', 'seuil_alerte_stock', 'message_prix_solidaire']
         widgets = {
-            'prix_standard': forms.NumberInput(attrs={
-                'class': 'form-control', 'min': 0,
-                'placeholder': '7500'
-            }),
-            'prix_reduit': forms.NumberInput(attrs={
-                'class': 'form-control', 'min': 0,
-                'placeholder': 'Ex: 3750'
-            }),
-            'seuil_credits': forms.NumberInput(attrs={
-                'class': 'form-control', 'min': 1
-            }),
-            'seuil_alerte_stock': forms.NumberInput(attrs={
-                'class': 'form-control', 'min': 1
-            }),
-            'message_prix_solidaire': forms.Textarea(attrs={
-                'class': 'form-control', 'rows': 3
-            }),
-        }
-        labels = {
-            'prix_standard': 'Prix standard (FCFA/poche)',
-            'prix_reduit': 'Prix solidaire (FCFA/poche) — décidé par le Directeur',
-            'seuil_credits': 'Nombre de dons minimum pour le prix solidaire',
-            'seuil_alerte_stock': 'Seuil d\'alerte stock (poches par groupe)',
-            'message_prix_solidaire': 'Message d\'explication du prix solidaire',
-        }
-        help_texts = {
-            'prix_reduit': 'Prix réduit accordé aux donneurs réguliers et à leur famille selon décision du Directeur.',
-            'seuil_credits': 'Ex: 3 dons minimum pour bénéficier du prix solidaire',
+            'prix_standard': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'prix_reduit': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'seuil_credits': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'seuil_alerte_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'message_prix_solidaire': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
 
@@ -251,6 +240,10 @@ class UtilisateurForm(forms.ModelForm):
             raise forms.ValidationError("Les mots de passe ne correspondent pas.")
         return cleaned_data
 
+    # --- SÉCURITÉ : VÉRIFICATION DU TÉLÉPHONE CONGO POUR LES AGENTS ---
+    def clean_telephone(self):
+        return valider_numero_congo(self.cleaned_data.get('telephone'))
+
     def save(self, commit=True):
         user = super().save(commit=False)
         if self.cleaned_data.get('password1'):
@@ -270,39 +263,16 @@ class ExamenMedicalForm(forms.ModelForm):
             'resultat', 'motif_inaptitude', 'date_prochain_examen', 'notes_examen'
         ]
         widgets = {
-            'poids_ok': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'tension_ok': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'hemoglobine_ok': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'pas_de_maladie': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'pas_de_medicament': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'pas_operation_recente': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'pas_grossesse': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'pas_allaitement': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'pas_tatouage': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'pas_voyage_risque': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'resultat': forms.Select(attrs={'class': 'form-select'}),
             'motif_inaptitude': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'date_prochain_examen': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'notes_examen': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
-        labels = {
-            'poids_ok': 'Poids ≥ 50 kg',
-            'tension_ok': 'Tension artérielle normale',
-            'hemoglobine_ok': 'Taux d\'hémoglobine suffisant (≥ 12.5 g/dL)',
-            'pas_de_maladie': 'Pas de maladie chronique',
-            'pas_de_medicament': 'Pas sous médication incompatible',
-            'pas_operation_recente': 'Pas d\'opération récente (6 derniers mois)',
-            'pas_grossesse': 'Pas de grossesse en cours (pour femmes)',
-            'pas_allaitement': 'Pas d\'allaitement en cours',
-            'pas_tatouage': 'Pas de tatouage/percing récent (12 mois)',
-            'pas_voyage_risque': 'Pas de voyage en zone endémique récent',
-        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['date_prochain_examen'].required = False
-        self.fields['motif_inaptitude'].required = False
-        self.fields['notes_examen'].required = False
+        for field in ['poids_ok', 'tension_ok', 'hemoglobine_ok', 'pas_de_maladie', 'pas_de_medicament', 'pas_operation_recente', 'pas_grossesse', 'pas_allaitement', 'pas_tatouage', 'pas_voyage_risque']:
+            self.fields[field].widget.attrs.update({'class': 'form-check-input'})
 
 
 class HopitalForm(forms.ModelForm):
@@ -310,10 +280,10 @@ class HopitalForm(forms.ModelForm):
         model = Hopital
         fields = ['nom', 'adresse', 'telephone', 'quartier', 'latitude', 'longitude', 'actif']
         widgets = {
-            'nom': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nom de l\'hôpital'}),
-            'adresse': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Adresse complète'}),
-            'telephone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+242 XX XXX XXXX'}),
-            'quartier': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Quartier'}),
+            'nom': forms.TextInput(attrs={'class': 'form-control'}),
+            'adresse': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'telephone': forms.TextInput(attrs={'class': 'form-control'}),
+            'quartier': forms.TextInput(attrs={'class': 'form-control'}),
             'latitude': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
             'longitude': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
             'actif': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -324,29 +294,35 @@ class CandidatDonForm(forms.ModelForm):
     class Meta:
         model = CandidatDon
         fields = [
-            'nom_complet', 
-            'telephone', 
-            'date_naissance',
-            'poids',
-            'type_visite', 
-            'age_ok', 
-            'bonne_sante', 
-            'pas_don_recent', 
-            'notes'
+            'nom_complet', 'telephone', 'date_naissance', 'poids',
+            'type_visite', 'age_ok', 'bonne_sante', 'pas_don_recent', 'notes'
         ]
         widgets = {
-            'nom_complet': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nom et prénom'}),
-            'telephone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+242 XX XXX XXXX'}),
+            'nom_complet': forms.TextInput(attrs={'class': 'form-control'}),
+            'telephone': forms.TextInput(attrs={'class': 'form-control'}),
             'date_naissance': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'poids': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Poids en kg', 'min': 30, 'max': 200}),
+            'poids': forms.NumberInput(attrs={'class': 'form-control', 'min': 50}),
             'type_visite': forms.Select(attrs={'class': 'form-select'}),
-            'age_ok': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'bonne_sante': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'pas_don_recent': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
-        labels = {
-            'age_ok': 'Âge vérifié (entre 18 et 65 ans)',
-            'bonne_sante': 'Bonne santé générale',
-            'pas_don_recent': 'Pas de don dans les 56 derniers jours',
-        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in ['age_ok', 'bonne_sante', 'pas_don_recent']:
+            self.fields[field].widget.attrs.update({'class': 'form-check-input'})
+
+    # --- SÉCURITÉ : VÉRIFICATION DE L'ÂGE DES CANDIDATS ---
+    def clean_date_naissance(self):
+        date_naiss = self.cleaned_data.get('date_naissance')
+        if date_naiss:
+            aujourd_hui = date.today()
+            age = aujourd_hui.year - date_naiss.year - ((aujourd_hui.month, aujourd_hui.day) < (date_naiss.month, date_naiss.day))
+            if age < 18:
+                raise ValidationError(f"Le candidat doit avoir au moins 18 ans. (Âge actuel : {age} ans).")
+            if age > 65:
+                raise ValidationError(f"Le candidat ne peut pas avoir plus de 65 ans. (Âge actuel : {age} ans).")
+        return date_naiss
+
+    # --- SÉCURITÉ : VÉRIFICATION DU TÉLÉPHONE CONGO (CANDIDATS) ---
+    def clean_telephone(self):
+        return valider_numero_congo(self.cleaned_data.get('telephone'))

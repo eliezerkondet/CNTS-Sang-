@@ -60,7 +60,13 @@
           {% endif %}
         </td>
         <td>
-          <a href="{% url 'utilisateur_edit' u.pk %}" class="btn-sm-ghost"><i class="bi bi-pencil"></i></a>
+          <div style="display:flex; gap:5px;">
+            <a href="{% url 'utilisateur_edit' u.pk %}" class="btn-sm-ghost" title="Modifier"><i class="bi bi-pencil"></i></a>
+            <!-- LE BOUTON SUPPRIMER EST LÀ -->
+            <a href="{% url 'utilisateur_delete' u.pk %}" class="btn-sm-ghost" style="color:var(--crimson); border-color:var(--crimson);" onclick="return confirm('Êtes-vous sûr de vouloir supprimer définitivement cet utilisateur ?')" title="Supprimer">
+              <i class="bi bi-trash"></i>
+            </a>
+          </div>
         </td>
       </tr>
       {% empty %}

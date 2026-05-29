@@ -2066,3 +2066,15 @@ def traiter_pre_enregistrement(request, pk):
     demande.save()
     messages.success(request, f"Demande de {demande.nom_complet} marquée comme traitée.")
     return redirect('liste_pre_enregistrements')
+@login_required
+@role_required('admin')
+def utilisateur_delete(request, pk):
+    user = get_object_or_404(Utilisateur, pk=pk)
+    # Protection vitale : L'admin ne peut pas se supprimer lui-même !
+    if user == request.user:
+        messages.error(request, "Vous ne pouvez pas supprimer votre propre compte !")
+        return redirect('utilisateur_list')
+        
+    user.delete()
+    messages.success(request, f"L'utilisateur {user.username} a été supprimé.")
+    return redirect('utilisateur_list')

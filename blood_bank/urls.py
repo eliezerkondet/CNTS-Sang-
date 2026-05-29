@@ -106,4 +106,5 @@ urlpatterns = [
     path('pre-enregistrement/', views.pre_enregistrement_donneur, name='pre_enregistrement_donneur'),
     path('pre-enregistrements/', views.liste_pre_enregistrements, name='liste_pre_enregistrements'),
     path('pre-enregistrement/traiter/<int:pk>/', views.traiter_pre_enregistrement, name='traiter_pre_enregistrement'),
+    path('utilisateurs/<int:pk>/supprimer/', views.utilisateur_delete, name='utilisateur_delete'),
 ]
